@@ -1,0 +1,148 @@
+name: Issue Lifecycle Bot
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  sync:
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update linked issues
+        env:
+          GH_TOKEN: ${{ secrets.MIN_REPO_TOKEN || secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REPOSITORY: ${{ github.repository }}
+          EVENT_PAYLOAD: ${{ toJson(github.event) }}
+        run: |
+          set -euo pipefail
+
+          FLOW_REPOS=(
+            min-null/minchat-hq
+            min-null/minchat-backend
+            min-null/minchat-frontend
+            min-null/minchat-frontend-web
+            min-null/minchat-frontend-android
+            min-null/minchat-frontend-desktop
+            min-null/minchat-frontend-flutter
+            min-null/minchat-ops
+            min-null/development-kit
+            min-null/minlab
+            min-null/.github
+          )
+
+          ensure_label() {
+            gh label create "$1" --color "$2" --force >/dev/null 2>&1 || true
+          }
+
+          STATUS_REVIEW='{"name":"status:in-review","color":"fbca04","description":"PR opened referencing this issue"}'
+          STATUS_DEVELOP='{"name":"status:in-develop","color":"0e8a16","description":"Merged to develop branch"}'
+          STATUS_RELEASE='{"name":"status:in-release","color":"fbca04","description":"Release PR opened for develop -> main"}'
+          STATUS_RELEASED='{"name":"status:released","color":"0075ca","description":"Released to main"}'
+
+          # Step 1: decide target repos
+          TARGET=()
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            TARGET=("$EVENT_REPOSITORY")
+          else
+            TARGET=("${FLOW_REPOS[@]}")
+          fi
+
+          # Step 2: bootstrap labels in each target repo
+          for repo in "${TARGET[@]}"; do
+            ensure_label status:in-review fbca04 || true
+            ensure_label status:in-develop 0e8a16 || true
+            ensure_label status:in-release bfdadc || true
+            ensure_label status:released 0075ca || true
+          done
+
+          # Step 3: process PRs. For PR event, just that one. For schedule, recent merges last 24h.
+          process_pr() {
+            local repo="$1" num="$2" base="$3" body="$4" pr_url="$5" head="$6" release_label="$7"
+            local issues
+            issues=$(echo "$body" | grep -oiE '(closes|fixes|resolves|fix|close)\s*#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
+            if [ -z "$issues" ]; then
+              issues=$(echo "$head" | grep -oE 'issues-[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
+            fi
+            [ -z "$issues" ] && { echo "  $repo #$num: no linked issues, skip"; return 0; }
+
+            local new_label comment close_issue
+            if [ "$base" = "main" ]; then
+              new_label=status:released
+              comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url})."
+              close_issue=true
+            elif [ "$release_label" = "true" ]; then
+              new_label=status:in-release
+              comment="[lifecycle-bot] 🚀 Release PR opened: [#${num}](${pr_url})."
+              close_issue=false
+            elif [ "$base" = "develop" ]; then
+              new_label=status:in-develop
+              comment="[lifecycle-bot] 🟢 Merged to \`develop\` via [#${num}](${pr_url})."
+              close_issue=false
+            else
+              return 0
+            fi
+
+            for issue in $issues; do
+              echo "  $repo #$issue → $new_label"
+              if gh issue comment "$issue" --repo "$repo" --body "$comment" 2>/dev/null; then
+                :
+              else
+                echo "    (no comment access, skipping comment)"
+              fi
+              if gh issue edit "$issue" --repo "$repo" --add-label "$new_label" 2>/dev/null; then
+                :
+              else
+                echo "    (no edit access, skipping label)"
+              fi
+              if [ "$close_issue" = "true" ]; then
+                gh issue close "$issue" --repo "$repo" --reason completed 2>/dev/null || \
+                  echo "    (no close access, skipping close)"
+              fi
+            done
+          }
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            jq -r '
+              .pull_request |
+              [.number, .base.ref, .body // "", .html_url, .head.ref, (.labels // [] | map(.name) | join(","))] |
+              @tsv
+            ' <<<"$EVENT_PAYLOAD" | while IFS=$'\t' read -r num base body pr_url head labels; do
+              has_release="false"
+              echo "$labels" | grep -qw release && has_release="true"
+              process_pr "$EVENT_REPOSITORY" "$num" "$base" "$body" "$pr_url" "$head" "$has_release"
+            done
+          else
+            since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+                    date -u -v-24H +%Y-%m-%dT%H:%M:%SZ)
+            for repo in "${TARGET[@]}"; do
+              echo "--- $repo ---"
+              prs=$(gh pr list --repo "$repo" --state merged --search "merged:>=$since" --json number,baseRefName,body,url,headRefName,labels 2>/dev/null) || {
+                echo "  (skipped: no access)"
+                continue
+              }
+              echo "$prs" | jq -c '.[]' | while read -r pr; do
+                num=$(echo "$pr" | jq -r .number)
+                base=$(echo "$pr" | jq -r .baseRefName)
+                body=$(echo "$pr" | jq -r .body // "")
+                pr_url=$(echo "$pr" | jq -r .url)
+                head=$(echo "$pr" | jq -r .headRefName)
+                labels=$(echo "$pr" | jq -r '[.labels[].name] | join(",")')
+                has_release="false"
+                echo "$labels" | grep -qw release && has_release="true"
+                process_pr "$repo" "$num" "$base" "$body" "$pr_url" "$head" "$has_release"
+              done
+            done
+          fi
