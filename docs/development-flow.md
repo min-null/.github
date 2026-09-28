@@ -89,8 +89,13 @@ Cross-repo инициатива — один parent issue в `minchat-hq` с ч�
 ```sh
 git fetch origin
 git switch develop && git pull --ff-only
-git switch -c feature/<короткое-описание>
+git worktree add ../<repo>-issues-<номер>-<короткое-описание> -b issues-<номер>-<короткое-описание>
+cd ../<repo>-issues-<номер>-<короткое-описание>
+git submodule update --init --recursive
 ```
+
+Каждый PR живёт в собственном worktree. Одна ветка = одна задача; объединять
+две фичи в одну ветку запрещено.
 
 PR в `develop` должен проходить quality gate своего репозитория. Направление
 веток проверяется автоматически.
@@ -140,6 +145,61 @@ Dev-выпуск запускается вручную на ops `develop` с `ba
 
 Канон: [minchat-ops/docs/release-process.md](https://github.com/min-null/minchat-ops/blob/main/docs/release-process.md),
 [minchat-ops/docs/rollback.md](https://github.com/min-null/minchat-ops/blob/main/docs/rollback.md).
+
+## Параллельная работа
+
+Git поддерживает не одну активную ветку, а сколько угодно — через worktree.
+Эта модель — единственный способ вести несколько фич и фиксов одновременно
+без потери чужих изменений.
+
+### Базовые правила
+
+- **Каждой задаче — свой worktree.** Никакой параллельной записи в один checkout.
+  Если переключаешься между задачами в одной репе, значит нужен ещё один
+  worktree, а не commit на ту же ветку.
+- **Одна ветка = одна задача.** Объединять две фичи или два фикса в одну ветку
+  запрещено. Каждый worktree пишет строго свою задачу.
+- **Каждой работе соответствует таска.** Если у работы пока нет номера issue,
+  он создаётся в `minchat-hq` до старта, и имя приводится к формату ниже.
+- **Только main checkout пишет в `develop` и `main`.** Из worktree открывается
+  PR, но merge и push в защищённые ветки — операция main checkout, чтобы
+  submodule и CI-state не разъезжались.
+- **Каждый worktree получает свежий setup.** `git submodule update --init
+  --recursive` и репозиторный `Makefile`/`script` запускаются заново; чужой
+  submodule-state не наследуется.
+- **Integration owner назначается в parent issue в `minchat-hq`.** При
+  конфликтующих изменениях одного файла в разных worktree порядок
+  определяет integration owner.
+
+### Именование
+
+Ветка и папка worktree именуются одинаково:
+
+```text
+issues-<номер>-<короткое-описание>
+```
+
+Примеры:
+
+```text
+issues-42-fix-call-rejection
+issues-87-incoming-call-ringing
+issues-103-add-workspace-tabs
+```
+
+Слаг — буквы, цифры и дефис, нижний регистр. Если у работы пока нет номера,
+допустимо начать с короткого описания, но issue создаётся немедленно и ветка
+переименовывается.
+
+### Откуда это
+
+- Команды `git worktree add`, submodule setup и submodule-границы — в
+  [`development-kit/docs/repository-workflow.md`](https://github.com/min-null/development-kit/blob/main/docs/repository-workflow.md),
+  раздел Worktrees.
+- Сквозная фича с ролями и evidence — skill `feature-orchestration`
+  (MIN Development Kit).
+- При конфликте приоритетов между параллельными worktree — решение integration
+  owner-а, зафиксированное в parent issue в `minchat-hq`.
 
 ## Релизный план
 
