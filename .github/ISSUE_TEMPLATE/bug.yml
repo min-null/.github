@@ -1,0 +1,99 @@
+name: 🐞 Bug
+description: Сообщить о баге — что-то не работает или работает неправильно.
+title: "[bug] "
+labels:
+  - "type:bug"
+assignees:
+  - "linzer0"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за репорт. Перед открытием PR проверьте:
+        - воспроизводится ли баг на свежей версии `develop`
+        - есть ли уже открытый issue / PR, который это закрывает
+        - одна ли это проблема (один issue = один сценарий)
+
+  - type: input
+    id: severity
+    attributes:
+      label: Серьёзность (P0–P3)
+      description: |
+        - **P0** — ломает основной сценарий, обхода нет
+        - **P1** — сценарий работает, но с потерей, видит каждый пользователь
+        - **P2** — частный случай или workaround возможен
+        - **P3** — косметика
+      placeholder: "P0 / P1 / P2 / P3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Затронутая область
+      description: Где наблюдается проблема. Это станет `area:*` label.
+      multiple: false
+      options:
+        - area:backend
+        - area:contracts
+        - area:web
+        - area:desktop
+        - area:android
+        - area:flutter
+        - area:ops
+        - area:hq
+    validations:
+      required: true
+
+  - type: input
+    id: repro
+    attributes:
+      label: Шаги воспроизведения
+      description: Что вы делали, что наблюдали.
+      placeholder: |
+        1. Открыть ...
+        2. Нажать ...
+        3. Увидеть ...
+    validations:
+      required: true
+
+  - type: input
+    id: expected
+    attributes:
+      label: Ожидаемое поведение
+    validations:
+      required: true
+
+  - type: input
+    id: actual
+    attributes:
+      label: Фактическое поведение
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Окружение
+      multiple: true
+      options:
+        - Web (Chrome)
+        - Web (Firefox/Safari/Edge)
+        - Android
+        - iOS
+        - Desktop
+        - Production
+        - Dev
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи / скриншоты / видео
+      description: Anything that helps reproduce or diagnose.
+      render: shell
+
+  - type: input
+    id: release
+    attributes:
+      label: Версия / commit
+      placeholder: "release-0.x.y, origin/develop@<sha>, или main@<sha>"

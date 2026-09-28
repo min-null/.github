@@ -1,0 +1,17 @@
+contact_links:
+  - name: MinChat HQ
+    url: https://github.com/min-null/minchat-hq
+    about: Координационный контур: product, research, legal, brand, roadmap
+  - name: Единый процесс разработки
+    url: https://github.com/min-null/.github/blob/main/docs/development-flow.md
+    about: Канонический документ по веткам, PR, release, deploy
+  - name: Карта репозиториев
+    url: https://github.com/min-null/minchat-hq/blob/main/docs/repositories.md
+    about: Куда какие задачи заводить
+  - name: Принципы продуктовой разработки
+    url: https://github.com/min-null/minchat-hq/blob/main/docs/product-development-principles.md
+    about: Product gate: пользователь, мотивация, UX, критерий успеха
+  - name: Словарь labels
+    url: https://github.com/min-null/.github/blob/main/docs/labels.md
+    about: type:*, area:*, coordination:*, risk:*
+blank_issues_enabled: false
