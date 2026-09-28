@@ -1,0 +1,66 @@
+name: Branch Lint
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  workflow_call:
+    inputs:
+      head_ref:
+        required: false
+        type: string
+      base_ref:
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  branch-lint:
+    name: Enforce issues-<n>-<short> format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch name
+        env:
+          HEAD: ${{ inputs.head_ref || github.head_ref }}
+          BASE: ${{ inputs.base_ref || github.base_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$HEAD" ]; then
+            echo "::error::HEAD branch ref is empty; cannot lint."
+            exit 1
+          fi
+
+          # Integrated branches and release PRs skip the lint.
+          if [ "$HEAD" = "develop" ] || [ "$HEAD" = "main" ]; then
+            echo "OK: $HEAD is an integrated branch."
+            exit 0
+          fi
+          if [ "$BASE" = "main" ]; then
+            echo "OK: release PR (develop -> main) skips the branch-name lint."
+            exit 0
+          fi
+
+          if echo "$HEAD" | grep -qE '^issues-[0-9]+-[a-z0-9-]+$'; then
+            echo "OK: branch name '$HEAD' matches issues-<n>-<short-description>."
+            exit 0
+          fi
+
+          cat <<EOF >&2
+::error::Branch name '$HEAD' does not match the required format.
+
+Required: issues-<number>-<short-description>
+Examples:  issues-42-fix-call-rejection
+           issues-87-incoming-call-ringing
+           issues-103-add-workspace-tabs
+
+Rules:
+- Lowercase letters, digits, and hyphens only.
+- No prefix (forbidden examples: codex/, agent/, tmp/, feature/, fix/).
+- No other separators or suffixes.
+- The number is required; issues without a tracked number must create one
+  in minchat-hq first.
+EOF
+          exit 1

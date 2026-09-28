@@ -1,36 +1,25 @@
 # Repo Instructions
 
-## Назначение
+## Purpose
 
-- Этот репозиторий — org-level контур организации `min-null`.
-- Здесь живёт **процесс**: единый флоу разработки, ветки, PR, release, deploy и rollback.
-- Здесь не хранятся product source code, runtime, контракты, окружения и секреты.
+- This repository is the organization-level container for `min-null`.
+- The **process** lives here: a single development flow covering branches, pull requests, release, and deploy.
+- Product source code, runtime, contracts, environments, and secrets do not live here.
 
-## Обязательно к прочтению
+## Required Reading
 
-- `docs/development-flow.md` — единственный канонический документ процесса.
-  Читать полностью перед добавлением шага процесса, изменением правил веток,
-  release или gate.
+- `docs/development-flow.md` is the single canonical process document.
+  Read it in full before adding a step to the process or before changing branch,
+  release, or gate rules.
 
-## Правила
+## Rules
 
-- Процесс один для всех репозиториев организации. Репозиторий добавляет данные,
-  команды и собственные runbook'и, но не придумывает правил процесса.
-- Новый шаг процесса сначала описывается в `docs/development-flow.md`, потом на
-  него ссылаются репозитории. Не добавляйте процесс в репозитории.
-- **`develop` не удаляется ни при каких обстоятельствах.** Ни после release-мержа,
-  ни при переносе задачи, ни «чтобы привести репо в порядок». Ветка отсутствует
-  только между удалением и восстановлением из `main`, и каждая такая попытка
-  разбирается как инцидент. Если обнаружил, что `develop` нет, — восстанови его
-  из `main` и скажи об этом явно, а не молча создай ветку. Правило 9 канона.
-- Этот документ ссылается на source of truth в других репозиториях и не копирует
-  их содержимое.
-- Team-facing документация ведётся на русском; команды, идентификаторы, пути и
-  фрагменты кода сохраняются как есть.
-- Не коммитить `.env`, credentials, private keys, production dumps и локальное
-  runtime-состояние.
+- The process is single and shared across the organization's repositories. A repository adds data, commands, and its own runbooks. It does not invent process rules.
+- A new process step is described in `docs/development-flow.md` first, then referenced from the repositories. Do not add process to repositories.
+- This document links to source-of-truth in other repositories and does not copy their content.
+- Team-facing documentation is kept in Russian; commands, identifiers, paths, and code snippets stay as is.
+- Do not commit `.env`, credentials, private keys, production dumps, or local runtime state.
 
-## Проверка
+## Verification
 
-- Перед merge проверить, что новые ссылки в документации резолвятся и не
-  противоречат канону в репозиториях-владельцах.
+- Before merge, verify that new documentation links resolve and do not contradict the canonical sources in the owning repositories.
