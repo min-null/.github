@@ -1,0 +1,103 @@
+name: ✨ Feature
+description: Запрос на новую функциональность или улучшение.
+title: "[feature] "
+labels:
+  - "type:feature"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature issues должны начинаться с product brief из
+        [`product-development-principles.md`](https://github.com/min-null/minchat-hq/blob/main/docs/product-development-principles.md).
+        Для `M+` размера — отдельный brief; для `XS/S` допустимо заполнить
+        ответы прямо в этой форме.
+
+  - type: textarea
+    id: user
+    attributes:
+      label: Пользователь и контекст
+      description: Кто этот пользователь, в какой ситуации он приходит.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Желаемый результат
+      description: Что должно измениться в жизни пользователя.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Мотивация сейчас
+      description: Почему он станет действовать сейчас, а не через месяц.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_pain
+    attributes:
+      label: Текущая боль или обход
+    validations:
+      required: true
+
+  - type: textarea
+    id: happy_path
+    attributes:
+      label: Основной путь
+      description: Входная точка, шаги, момент ценности.
+    validations:
+      required: true
+
+  - type: textarea
+    id: negative_paths
+    attributes:
+      label: Негативные пути
+      description: Отказ, ожидание, ошибка, отмена, повторный вход.
+
+  - type: textarea
+    id: contracts
+    attributes:
+      label: Продуктовый и технический contract
+      description: Состояния, переходы, права, события.
+
+  - type: textarea
+    id: criterion
+    attributes:
+      label: Критерий успеха
+      description: Какое поведение или сигнал подтвердит, что сценарий стал лучше.
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Что НЕ делаем
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Затронутая область
+      multiple: true
+      options:
+        - area:backend
+        - area:contracts
+        - area:web
+        - area:desktop
+        - area:android
+        - area:flutter
+        - area:ops
+        - area:hq
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Ожидаемый размер
+      options:
+        - XS
+        - S
+        - M
+        - L
+        - XL
