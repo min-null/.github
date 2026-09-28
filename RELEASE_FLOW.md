@@ -1,12 +1,23 @@
 # Release flow
 
-This repository follows the shared MinChat branch contract.
+This repository follows the MinChat development flow. The canonical process is defined once, at
+organization level, in min-null/.github/docs/development-flow.md:
 
-- Keep both `develop` and `main` branches.
-- Start every feature or fix from the current `develop`.
-- Push work to a feature/fix branch and open a pull request (MR) into `develop`.
-- Promote only `develop -> main` through a release pull request (MR) carrying the `release` label.
-- Create `release-*` tags only from `main`, after the release MR is merged.
-- A release tag is the only trigger for the release deployment pipeline. A branch push, a feature PR, or a manual image build is not a deployment.
+> https://github.com/min-null/.github/blob/main/docs/development-flow.md
 
-For a cross-repository release, use the same release tag in every release-producing repository. The release coordinator must verify that the referenced commits are on `main` before dispatching deployment.
+Read it completely before creating a branch, opening a pull request, or merging anything.
+This file is a local pointer only. It is not a second source of truth, and it does not define
+repository-specific process rules.
+
+In short:
+
+- Keep both develop and main.
+- Start every feature or fix from the current develop and merge it into develop.
+- main accepts only develop -> main release pull requests carrying the elease label.
+- Create elease-* tags from main only, after that release pull request is merged.
+- A release tag is the only trigger for a production deployment. A branch push, a feature pull
+  request, or a manual image build is not a deployment.
+
+Repository-specific runbooks stay with their owner, for example docs/release-flow.md in
+minchat-backend and docs/release-process.md in minchat-ops. They describe how to run that
+repository, not how the organization branches, merges, and releases.
