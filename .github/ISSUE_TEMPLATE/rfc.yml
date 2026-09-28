@@ -1,0 +1,71 @@
+name: 📝 RFC
+description: Запрос на обсуждение и решение до начала реализации.
+title: "RFC: "
+labels:
+  - "type:research"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        RFC — это решение, а не задача. Цель — договориться до кода.
+        После approval статус меняется на «принято» и задача превращается
+        в один или несколько issue с `Fixes #<этот-RFC>`.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Контекст и мотивация
+      description: Почему сейчас. Что меняется в продукте, организации или среде.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Предложение
+      description: Что предлагается сделать, в общих чертах.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Рассмотренные альтернативы
+      description: Почему отвергнуты. Сравнение по стоимости, риску, ограничениям.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Затронутые области
+      description: Репозитории, контракты, процессы. Где потребуются изменения.
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Риски и обратимость
+      description: Что может пойти не так. Можно ли откатить.
+
+  - type: textarea
+    id: decision
+    attributes:
+      label: Запрашиваемое решение
+      description: Что фиксируется этим RFC. Дата принятия, участники.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Затронутая область
+      multiple: true
+      options:
+        - area:backend
+        - area:contracts
+        - area:web
+        - area:desktop
+        - area:android
+        - area:flutter
+        - area:ops
+        - area:hq

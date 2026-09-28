@@ -1,0 +1,69 @@
+name: 🔍 Audit
+description: Большой аудит или пентест — находки и план работ. Один umbrella issue с чек-листом задач.
+title: "Audit: "
+labels:
+  - "type:security"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Используйте для большого аудита (безопасность, админка, процессы).
+        По одному umbrella issue, в чек-листе — отдельные дочерние задачи.
+        Все связанные PR должны ссылаться на этот issue через `Part of #<N>`
+        и закрываться через `Fixes #<child>`.
+
+  - type: input
+    id: scope
+    attributes:
+      label: Объект аудита
+      description: Какой компонент / процесс / репозиторий проверялся.
+      placeholder: "например: admin panel в minchat-backend"
+    validations:
+      required: true
+
+  - type: input
+    id: methodology
+    attributes:
+      label: Метод
+      description: Ручной разбор, статанализатор, чек-лист OWASP, и т.д.
+
+  - type: textarea
+    id: findings
+    attributes:
+      label: Сводка находок
+      description: Краткое описание групп находок. Детали — в дочерних issues.
+      placeholder: |
+        1. Деструктивные операции без role check (3 находки)
+        2. force-delete оставляет orphan rows (1 находка)
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: checklist
+    attributes:
+      label: Чек-лист задач
+      description: Номера дочерних issues через запятую или отдельной таблицей.
+      placeholder: "#73, #74, #75, #76, ..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: top_priority
+    attributes:
+      label: Самый критичный класс находок
+      options:
+        - Только data shape / гигиена
+        - Privilege escalation / role bypass
+        - Auth / session / CSRF
+        - Information disclosure
+        - DoS / abuse prevention
+        - Целостность данных / orphan FK
+        - UX оператора
+
+  - type: input
+    id: report_path
+    attributes:
+      label: Полный отчёт
+      description: Путь к файлу в репо или внешняя ссылка.
+      placeholder: "docs/admin-panel-audit-2026-09-28.md или ссылка"

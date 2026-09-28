@@ -1,0 +1,78 @@
+name: Develop Guard
+
+# Ветка `develop` — обязательная ветка интеграции (правило 9 в
+# min-null/.github/docs/development-flow.md). Её удаляли четыре раза за сентябрь
+# 2026, каждый раз сразу после merge release PR в `main`, и каждый раз это
+# ломало develop-first флоу: Branch Policy отклоняет feature PR, и задачу
+# приходится направлять в другую ветку.
+#
+# На текущем тарифе запретить удаление технически нельзя — branch protection и
+# rulesets возвращают HTTP 403, а delete_branch_on_merge уже выключен. Поэтому
+# этот workflow восстанавливает ветку и явно сигналит об этом.
+#
+# Он не падает: отсутствие `develop` не должно блокировать несвязанные merge.
+#
+# Границы триггеров:
+#   push в main      — ловит наблюдаемый случай, удаление после release-мержа
+#   push в develop   — удаление в ходе интеграционной работы
+#   schedule         — ежедневная подстраховка; таймеры GitHub читают workflow
+#                      только из ветки по умолчанию, то есть работает лишь после
+#                      промоута этого файла в main
+#   workflow_dispatch — ручная проверка по требованию
+#
+# Ключ — собственный GITHUB_TOKEN этого репозитория, секретов не требуется.
+
+on:
+  push:
+    branches: [main, develop]
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: develop-guard-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Ensure develop exists
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Recreate develop from main when missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh api "repos/$REPO/branches/develop" >/dev/null 2>&1; then
+            echo "develop exists, nothing to do."
+            {
+              echo "## Develop Guard"
+              echo ""
+              echo "develop is present, no action taken."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "develop is missing in $REPO; recreating it from main." >&2
+
+          main_sha=$(gh api "repos/$REPO/commits/main" --jq .sha)
+          gh api --method POST "repos/$REPO/git/refs" \
+            -f ref="refs/heads/develop" \
+            -f sha="$main_sha" >/dev/null
+
+          {
+            echo "## Develop Guard"
+            echo ""
+            echo "::error::develop was missing in $REPO and has been recreated from main at $main_sha. Treat the deletion as an incident: see rule 9 in min-null/.github/docs/development-flow.md."
+            echo ""
+            echo "- restored: \`refs/heads/develop\` from \`main\` at \`$main_sha\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "restored refs/heads/develop at $main_sha"

@@ -44,6 +44,19 @@ PR и до любого merge. Остальной документ нужен д
 8. **Проверяй, а не утверждай.** Непроведённая проверка помечается `not_run` с
    причиной и не считается успешной.
 
+9. **`develop` не удаляется.** Ветка интеграции не является временной: её не
+   удаляют после release, не удаляют «чтобы привести репо в порядок» и не
+   удаляют при переносе задачи. Если ветки нет — это инцидент, который чинят и
+   разбирают, а не состояние, которое «надо было убрать». Ветка отсутствует
+   ровно до момента восстановления из `main`; каждая такая попытка попадает в
+   разбор, потому что ломает develop-first флоу для всех, кто открывает PR.
+
+   На текущем тарифе запретить удаление технически нельзя: branch protection и
+   repository rulesets недоступны для приватных репозиториев, а
+   `delete_branch_on_merge` отключён. Поэтому защита состоит из двух слоёв:
+   guard-workflow `develop-guard.yml` пересоздаёт ветку из `main` и явно
+   сигналит об этом, а настоящий запрет требует смены тарифа.
+
 ## Сквозной пайплайн
 
 ```text
@@ -145,6 +158,52 @@ Dev-выпуск запускается вручную на ops `develop` с `ba
 
 Канон: [minchat-ops/docs/release-process.md](https://github.com/min-null/minchat-ops/blob/main/docs/release-process.md),
 [minchat-ops/docs/rollback.md](https://github.com/min-null/minchat-ops/blob/main/docs/rollback.md).
+
+### 7. Защита ветки develop
+
+`develop` удаляли четыре раза за сентябрь 2026, каждым разом сразу после merge
+release PR в `main`. Наблюдаемый вред один: ветки нет, Branch Policy отклоняет
+feature PR, и задачу приходится направлять в другую ветку.
+
+Заблокировать удаление на Free-плане нельзя — branch protection и rulesets
+возвращают `HTTP 403 Upgrade to GitHub Pro`, а `delete_branch_on_merge` уже
+выключен. Поэтому в каждом code/ops репозитории лежит одинаковый
+`develop-guard.yml`:
+
+```yaml
+name: Develop Guard
+
+on:
+  push:
+    branches: [main, develop]
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+```
+
+Workflow делает одно: если `refs/heads/develop` отсутствует, он создаёт его из
+текущего `main` и печатает `::error`-annotation. Если ветка есть — сразу
+выходит, ничего не меняя.
+
+Триггеры и их границы:
+
+- `push` в `main` ловит наблюдаемый случай — удаление сразу после release-мержа;
+- `push` в `develop` ловит удаление в ходе интеграционной работы;
+- `schedule` — ежедневная подстраховка, **но таймеры GitHub читают workflow только
+  из ветки по умолчанию**, то есть ежедневная проверка включается лишь после
+  промоута в `main`;
+- `workflow_dispatch` — ручная проверка по требованию.
+
+Workflow не падает: он восстанавливает ветку и поднимает annotation, иначе
+отсутствие `develop` блокировало бы несвязанные merge. Ключ — собственный
+`GITHUB_TOKEN` репозитория с `contents: write`, длинный-lived PAT уровня
+организации не используется: токен на запись во все 11 репозиториев — это
+лишняя поверхность, которой не место в секрете.
+
+Образец: [development-kit/.github/workflows/develop-guard.yml](https://github.com/min-null/development-kit/blob/main/.github/workflows/develop-guard.yml).
 
 ## Параллельная работа
 
