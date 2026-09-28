@@ -1,0 +1,48 @@
+name: Branch Policy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  branch-policy:
+    name: Enforce develop-first flow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate pull request direction
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "$BASE_BRANCH" in
+            develop)
+              if [ "$HEAD_BRANCH" = "main" ]; then
+                echo "main must not be merged into develop through a feature PR." >&2
+                exit 1
+              fi
+              ;;
+            main)
+              if [ "$HEAD_BRANCH" != "develop" ]; then
+                echo "Only develop -> main release PRs are allowed." >&2
+                exit 1
+              fi
+              case ",$LABELS," in
+                *,release,*) ;;
+                *)
+                  echo "A develop -> main PR must carry the release label." >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+            *)
+              echo "PRs must target develop, or main for a labeled release promotion." >&2
+              exit 1
+              ;;
+          esac
