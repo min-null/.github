@@ -3,6 +3,18 @@ name: Branch Policy
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
+  workflow_call:
+    inputs:
+      base_ref:
+        required: false
+        type: string
+      head_ref:
+        required: false
+        type: string
+      labels:
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -14,9 +26,9 @@ jobs:
     steps:
       - name: Validate pull request direction
         env:
-          BASE_BRANCH: ${{ github.base_ref }}
-          HEAD_BRANCH: ${{ github.head_ref }}
-          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          BASE_BRANCH: ${{ inputs.base_ref || github.base_ref }}
+          HEAD_BRANCH: ${{ inputs.head_ref || github.head_ref }}
+          LABELS: ${{ inputs.labels || join(github.event.pull_request.labels.*.name, ',') }}
         shell: bash
         run: |
           set -euo pipefail

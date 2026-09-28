@@ -253,6 +253,10 @@ issues-103-add-workspace-tabs
 допустимо начать с короткого описания, но issue создаётся немедленно и ветка
 переименовывается.
 
+**Формат enforce-ится автоматически** workflow `branch-lint.yml`: имя вне
+формата блокирует merge. Release PR `develop → main` и интеграционные
+ветки `develop`/`main` линт пропускает.
+
 ### Откуда это
 
 - Команды `git worktree add`, submodule setup и submodule-границы — в
