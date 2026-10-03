@@ -51,6 +51,38 @@ Project-поля `Status / Priority / Area / Target release / Size / Risk`
 | `risk:migration` | Связан с миграцией БД или кодовой базы; см. migration policy |
 | `risk:release` | Затрагивает release-train, требует release-pr |
 
+## Status (feature-pipeline)
+
+Слоты готовности issue. Дополняют автоматические `status:in-review/in-develop/in-release/released` (см. [`docs/issue-lifecycle.md`](./issue-lifecycle.md)). Подробные правила — в [`minchat-hq/docs/process/feature-pipeline/README.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md).
+
+| Label | Когда | Кто ставит |
+|---|---|---|
+| `status:inbox` | Новая, не разобрана. Бот ставит автоматически на issue без меток. | Бот |
+| `status:backlog` | Разобрана, отложена. Не в этой итерации. | Человек |
+| `status:pickable` | Готова к работе, можно брать. Бот проверяет 7 условий (см. rules.md). | Человек (после ручной проверки) |
+
+## Gate (feature-pipeline)
+
+Гейты блокируют переход в `status:pickable`. Пока стоит хоть один `needs:*` — issue не pickable.
+
+| Label | Когда закрывается |
+|---|---|
+| `needs:research` | После проведения research и занесения результатов в issue body |
+| `needs:spec` | Автоматически — когда в body появляется секция `## Acceptance criteria` |
+| `needs:design` | Меткой `design:approved` |
+| `needs:contract` | Меткой `contract:approved` |
+| `needs:adr` | Меткой `adr:approved` |
+
+## Approval (feature-pipeline)
+
+Закрывают гейты. Только человек с правом решения (обычно `linzer0`). Бот не ставит.
+
+| Label | Закрывает |
+|---|---|
+| `design:approved` | `needs:design` |
+| `contract:approved` | `needs:contract` |
+| `adr:approved` | `needs:adr` |
+
 ## Что НЕ используется как label
 
 - `P0`, `P1`, `P2`, `P3` — это поле Project, не label.

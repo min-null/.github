@@ -43,4 +43,24 @@ gh label create "risk:privacy"   --color "e11d48" --description "Privacy impact"
 gh label create "risk:migration" --color "ff8c00" --description "Migration risk"            --repo "$REPO" || true
 gh label create "risk:release"   --color "b60205" --description "Release risk"              --repo "$REPO" || true
 
+# ---- Status (feature-pipeline) ----
+# Слоты готовности. Дополняют автоматические status:in-review/in-develop/in-release/released.
+gh label create "status:inbox"   --color "fef2c0" --description "Новая issue, не разобрана. Бот ставит автоматически" --repo "$REPO" || true
+gh label create "status:backlog" --color "d4c5f9" --description "Разобрана, отложена. Не в этой итерации"             --repo "$REPO" || true
+gh label create "status:pickable" --color "0e8a16" --description "Готова к работе, можно брать. Бот проверяет 7 условий" --repo "$REPO" || true
+
+# ---- Gate (feature-pipeline) ----
+# Гейты блокируют переход в status:pickable.
+gh label create "needs:research" --color "fbca04" --description "Нужен research по задаче (что и как делать)"           --repo "$REPO" || true
+gh label create "needs:spec"     --color "fef2c0" --description "Нет полного описания или acceptance criteria в body"     --repo "$REPO" || true
+gh label create "needs:design"   --color "7057ff" --description "Нужен дизайн (UI-фичи). Закрывается design:approved"   --repo "$REPO" || true
+gh label create "needs:contract" --color "8a2be2" --description "Нужен контракт (API/shared). Закрывается contract:approved" --repo "$REPO" || true
+gh label create "needs:adr"      --color "bfd4f2" --description "Нужен ADR (технический выбор). Закрывается adr:approved" --repo "$REPO" || true
+
+# ---- Approval (feature-pipeline) ----
+# Только человек (обычно linzer0). Снимает соответствующий needs:*.
+gh label create "design:approved"   --color "0e8a16" --description "Дизайн утверждён. Закрывает needs:design"   --repo "$REPO" || true
+gh label create "contract:approved" --color "0e8a16" --description "Контракт утверждён. Закрывает needs:contract" --repo "$REPO" || true
+gh label create "adr:approved"      --color "0e8a16" --description "ADR принят. Закрывает needs:adr"             --repo "$REPO" || true
+
 echo "Labels in $REPO are in sync with docs/labels.md."

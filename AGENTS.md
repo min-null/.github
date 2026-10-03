@@ -11,6 +11,10 @@
 - `docs/development-flow.md` is the single canonical process document.
   Read it in full before adding a step to the process or before changing branch,
   release, or gate rules.
+- [`minchat-hq/docs/process/feature-pipeline/README.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md)
+  is the canonical feature-pipeline: status slots, gates (`needs:*`), approval
+  flow, agent self-check. Read it before claiming an issue or starting work.
+  Issue is "ready" only when it has `status:pickable` and no open `needs:*` gates.
 
 ## Rules
 

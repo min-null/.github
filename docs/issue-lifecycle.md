@@ -4,6 +4,20 @@ Issue, привязанный к PR, проходит через состоян�
 
 ## Состояния
 
+### Слоты готовности (feature-pipeline)
+
+Дополняют автоматические `status:*` снизу. Подробные правила — в [`minchat-hq/docs/process/feature-pipeline/rules.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/rules.md).
+
+| Состояние | Переход | Метка | Кто ставит |
+|---|---|---|---|
+| `inbox` | создана новая issue без меток | `status:inbox` | Бот (auto) |
+| `backlog` | разобрана, отложена | `status:backlog` | Человек |
+| `pickable` | готова к работе, можно брать | `status:pickable` | Человек (после проверки 7 условий) |
+
+Бот **не** переводит issue из `inbox` в `backlog`/`pickable` автоматически — это делает человек. Бот только ставит `inbox` на свежую issue.
+
+### Автоматические состояния (PR-привязанные)
+
 | Состояние | Переход | Метка | Что делает бот |
 |---|---|---|---|
 | `in-review` | открыт PR, ссылающийся на issue | `status:in-review` | ставит метку, пишет комментарий |
@@ -12,6 +26,17 @@ Issue, привязанный к PR, проходит через состоян�
 | `released` | release PR смёржен в `main` | `status:released` | ставит метку, пишет комментарий, закрывает issue |
 
 Состояния монотонны по времени, не по факту. Бот не «понижает» состояние, если PR закрыт не merge'ом; правки меток вручную бот не отменяет.
+
+## Stale-bot (feature-pipeline)
+
+Каждый час (в том же расписании, что основной цикл) бот проверяет:
+
+1. **Любая застрявшая issue** (любого типа — эпики, фичи, баги): нет активности (комментариев, label changes, assign changes) **14 дней** → автоматически ставит `coordination:needs-decision` и пишет комментарий. **Исключение**: если есть `assignee` — не трогать.
+2. **Эпики без `## Sub-tasks` 7 дней**: эпик-issues без секции `## Sub-tasks` через 7 дней после создания → `coordination:needs-decision` с предложением «разбить на sub-tasks или закрыть».
+
+Метка `coordination:needs-decision` снимается **только человеком** (или автоматически при `status:released`).
+
+Застрявшие задачи попадают в saved view «Feature Planning» (filter: `is:open label:coordination:needs-decision`).
 
 ## Как связать issue и PR
 
@@ -47,7 +72,11 @@ Workflow в `.github/.github/workflows/issue-lifecycle-bot.yml`. Триггер�
 ```
 issue открыт
     │
-    ▼ PR открыт с Closes #N
+    ▼ (бот) status:inbox
+    │   разобрана → status:backlog (человек)
+    │   готова    → status:pickable (человек, после 7 условий)
+    │   в работе  → branch + PR (Closes #N)
+    ▼
 status:in-review
     │
     ▼ PR смёржен → develop
@@ -58,4 +87,12 @@ status:in-release
     │
     ▼ release PR смёржен → main
 status:released   →   issue закрыт (reason: completed)
+
+(параллельно, по таймеру)
+    ▼ 14 дней без активности (любой тип)
+coordination:needs-decision   →   saved view «Feature Planning»
+
+(для эпиков)
+    ▼ 7 дней без `## Sub-tasks`
+coordination:needs-decision   →   saved view «Feature Planning»
 ```
