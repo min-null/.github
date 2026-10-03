@@ -1,0 +1,119 @@
+name: 🧭 Epic
+description: Cross-repo umbrella-задача с ADR, design, контрактами и sub-tasks по репо. Epic сам по себе не имплементируется — из него порождаются child-issues.
+title: "[EPIC] "
+labels:
+  - "type:feature"
+  - "area:hq"
+  - "coordination:cross-repo"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Epic — это **контейнер**, не задача для имплементации.
+        Из него порождаются child-issues в нужных репо после того,
+        как закрыты ADR / design / contract.
+
+        Полный процесс — в [`minchat-hq/docs/process/feature-pipeline/templates/epic.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/templates/epic.md).
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: TL;DR
+      description: 2-3 предложения: что хотим получить и зачем.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Что сейчас не так или что хотим улучшить.
+    validations:
+      required: true
+
+  - type: textarea
+    id: product_gate
+    attributes:
+      label: Product gate
+      description: |
+        Пользователь и контекст, желаемый результат, основной путь,
+        негативные пути, критерий успеха, что НЕ делаем.
+        По [product-development-principles.md](https://github.com/min-null/minchat-hq/blob/main/docs/product-development-principles.md).
+    validations:
+      required: true
+
+  - type: textarea
+    id: variants
+    attributes:
+      label: Варианты (если есть технический выбор)
+      description: |
+        Если есть выбор подхода — матрица сравнения.
+        Иначе пометьте «Подход выбран, см. ADR».
+
+  - type: textarea
+    id: sub_tasks
+    attributes:
+      label: Sub-tasks по репозиториям
+      description: |
+        Чеклист задач по репо. Каждый превращается в отдельный issue
+        после того, как закрыты соответствующие needs:* (ADR/design/contract).
+    validations:
+      required: true
+
+  - type: input
+    id: adr
+    attributes:
+      label: ADR
+      description: |
+        Ссылка на документ в `minchat-hq/docs/architecture/` или `research/`.
+        Блокирует старт implementation tasks до публикации.
+
+  - type: input
+    id: contract
+    attributes:
+      label: Контракт
+      description: |
+        Ссылка на контракт в `minchat-hq/docs/contracts/`.
+        Закрывает `needs:contract` на child-issues после `contract:approved`.
+
+  - type: input
+    id: design
+    attributes:
+      label: Дизайн (если затрагивает UX)
+      description: |
+        HTML-мок в `minchat-hq/docs/designs/<feature>.html` по ритуальной схеме.
+        Закрывает `needs:design` после `design:approved`.
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: |
+        Как поймём, что epic закрыт. Все child-issues в status:released,
+        метрики успеха достигнуты, пост-релиз review опубликован.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Затронутая область
+      multiple: true
+      options:
+        - area:backend
+        - area:contracts
+        - area:web
+        - area:desktop
+        - area:android
+        - area:flutter
+        - area:ops
+        - area:hq
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Приоритет
+      options:
+        - priority:critical
+        - priority:medium
+        - priority:low
+    validations:
+      required: true
