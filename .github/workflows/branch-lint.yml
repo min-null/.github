@@ -49,18 +49,18 @@ jobs:
           fi
 
           cat <<EOF >&2
-::error::Branch name '$HEAD' does not match the required format.
+          ::error::Branch name '$HEAD' does not match the required format.
 
-Required: issues-<number>-<short-description>
-Examples:  issues-42-fix-call-rejection
-           issues-87-incoming-call-ringing
-           issues-103-add-workspace-tabs
+          Required: issues-<number>-<short-description>
+          Examples:  issues-42-fix-call-rejection
+                     issues-87-incoming-call-ringing
+                     issues-103-add-workspace-tabs
 
-Rules:
-- Lowercase letters, digits, and hyphens only.
-- No prefix (forbidden examples: codex/, agent/, tmp/, feature/, fix/).
-- No other separators or suffixes.
-- The number is required; issues without a tracked number must create one
-  in minchat-hq first.
-EOF
+          Rules:
+          - Lowercase letters, digits, and hyphens only.
+          - No prefix (forbidden examples: codex/, agent/, tmp/, feature/, fix/).
+          - No other separators or suffixes.
+          - The number is required; issues without a tracked number must create one
+            in minchat-hq first.
+          EOF
           exit 1

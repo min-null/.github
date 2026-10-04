@@ -1,8 +1,10 @@
 name: Issue Lifecycle Bot
 
 on:
+  issues:
+    types: [opened]
   schedule:
-    - cron: '17 * * * *'
+    - cron: '17 5 * * 1'
   workflow_dispatch:
   pull_request:
     types: [closed]
@@ -10,12 +12,16 @@ on:
     secrets:
       GH_TOKEN:
         required: false
-        description: 'Optional cross-repo token; falls back to MIN_REPO_TOKEN or runner GITHUB_TOKEN'
+        description: 'Optional caller token; falls back to runner GITHUB_TOKEN'
 
 permissions:
   contents: read
   issues: write
   pull-requests: read
+
+concurrency:
+  group: issue-lifecycle-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   sync:
@@ -25,38 +31,23 @@ jobs:
       github.event_name == 'workflow_call' ||
       github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Update linked issues
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.MIN_REPO_TOKEN || secrets.GITHUB_TOKEN }}
-          EVENT_NAME: ${{ github.event_name }}
           EVENT_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
           EVENT_PAYLOAD: ${{ toJson(github.event) }}
         run: |
           set -euo pipefail
 
-          FLOW_REPOS=(
-            min-null/minchat-hq
-            min-null/minchat-backend
-            min-null/minchat-frontend
-            min-null/minchat-frontend-web
-            min-null/minchat-frontend-android
-            min-null/minchat-frontend-desktop
-            min-null/minchat-frontend-flutter
-            min-null/minchat-ops
-            min-null/development-kit
-            min-null/minlab
-            min-null/.github
-          )
+          FLOW_REPOS=("$EVENT_REPOSITORY")
 
           ensure_label() {
-            gh label create "$1" --color "$2" --force >/dev/null 2>&1 || true
+            gh label create "$1" --color "$2" --repo "$repo" --force >/dev/null 2>&1 || true
           }
 
-          STATUS_REVIEW='{"name":"status:in-review","color":"fbca04","description":"PR opened referencing this issue"}'
-          STATUS_DEVELOP='{"name":"status:in-develop","color":"0e8a16","description":"Merged to develop branch"}'
-          STATUS_RELEASE='{"name":"status:in-release","color":"fbca04","description":"Release PR opened for develop -> main"}'
-          STATUS_RELEASED='{"name":"status:released","color":"0075ca","description":"Released to main"}'
 
           # Step 1: decide target repos
           TARGET=()
@@ -74,7 +65,7 @@ jobs:
             ensure_label status:released 0075ca || true
           done
 
-          # Step 3: process PRs. For PR event, just that one. For schedule, recent merges last 24h.
+          # Step 3: process PRs. For PR event, just that one. For schedule, recent merges last eight days.
           process_pr() {
             local repo="$1" num="$2" base="$3" body="$4" pr_url="$5" head="$6" release_label="$7"
             local issues
@@ -103,7 +94,9 @@ jobs:
 
             for issue in $issues; do
               echo "  $repo #$issue → $new_label"
-              if gh issue comment "$issue" --repo "$repo" --body "$comment" 2>/dev/null; then
+              if gh issue view "$issue" --repo "$repo" --json comments --jq '.comments[].body' 2>/dev/null | grep -Fxq -- "$comment"; then
+                echo "    (comment already exists)"
+              elif gh issue comment "$issue" --repo "$repo" --body "$comment" 2>/dev/null; then
                 :
               else
                 echo "    (no comment access, skipping comment)"
@@ -131,18 +124,18 @@ jobs:
               process_pr "$EVENT_REPOSITORY" "$num" "$base" "$body" "$pr_url" "$head" "$has_release"
             done
           else
-            since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
-                    date -u -v-24H +%Y-%m-%dT%H:%M:%SZ)
+            since=$(date -u -d '8 days ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+                    date -u -v-8d +%Y-%m-%dT%H:%M:%SZ)
             for repo in "${TARGET[@]}"; do
               echo "--- $repo ---"
-              prs=$(gh pr list --repo "$repo" --state merged --search "merged:>=$since" --json number,baseRefName,body,url,headRefName,labels 2>/dev/null) || {
+              prs=$(gh pr list --repo "$repo" --state merged --limit 1000 --search "merged:>=$since" --json number,baseRefName,body,url,headRefName,labels 2>/dev/null) || {
                 echo "  (skipped: no access)"
                 continue
               }
               echo "$prs" | jq -c '.[]' | while read -r pr; do
                 num=$(echo "$pr" | jq -r .number)
                 base=$(echo "$pr" | jq -r .baseRefName)
-                body=$(echo "$pr" | jq -r .body // "")
+                body=$(echo "$pr" | jq -r '.body // ""')
                 pr_url=$(echo "$pr" | jq -r .url)
                 head=$(echo "$pr" | jq -r .headRefName)
                 labels=$(echo "$pr" | jq -r '[.labels[].name] | join(",")')
@@ -152,3 +145,140 @@ jobs:
               done
             done
           fi
+
+  # ---------------------------------------------------------------
+  # Inbox auto-stamper: ставит status:inbox на свежие issue без меток.
+  # Триггер: при открытии issue. Не трогает существующие метки.
+  # ---------------------------------------------------------------
+  inbox-stamper:
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Stamp status:inbox on unlabeled issue
+        env:
+          EVENT_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Убеждаемся, что метка существует
+          gh label create "status:inbox" --color "fef2c0" \
+            --description "Новая issue, не разобрана. Бот ставит автоматически" \
+            --repo "$REPO" --force >/dev/null 2>&1 || true
+
+          # Получаем текущие метки issue
+          current_labels=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null || echo "")
+
+          # Не трогаем, если уже есть какие-то метки (значит, человек уже разбирает)
+          if [ -n "$current_labels" ]; then
+            echo "Issue #$ISSUE_NUMBER already has labels ($current_labels), skip"
+            exit 0
+          fi
+
+          # Бот ставит status:inbox
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "status:inbox" 2>/dev/null || \
+            echo "  (no edit access, skipping)"
+          echo "Issue #$ISSUE_NUMBER → status:inbox"
+
+  # ---------------------------------------------------------------
+  # Stale-detector: ставит coordination:needs-decision на застрявшие issue.
+  # Триггер: еженедельная подстраховка, только текущий репозиторий.
+  # Исключения:
+  #   - issue имеет assignees (кто-то работает)
+  #   - issue уже released
+  #   - уже есть coordination:needs-decision
+  # Для эпиков: дополнительно проверяет наличие ## Sub-tasks (7 дней).
+  # ---------------------------------------------------------------
+  stale-detector:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Detect stale issues
+        env:
+          EVENT_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          FLOW_REPOS=("$EVENT_REPOSITORY")
+
+          ensure_label() {
+            gh label create "$1" --color "$2" --description "$3" \
+              --repo "$4" --force >/dev/null 2>&1 || true
+          }
+
+          for repo in "${FLOW_REPOS[@]}"; do
+            echo "--- $repo ---"
+            ensure_label "coordination:needs-decision" "fbc740" \
+              "Задача застряла, нужно решение" "$repo"
+
+            # Получаем открытые issue, обновлённые более 14 дней назад.
+            # REST API пагинируется один раз; фильтрация по updated_at локальная.
+            cutoff=$(date -u -d '14 days ago' +%Y-%m-%d 2>/dev/null || \
+                     date -u -v-14d +%Y-%m-%d)
+
+            issues=$(gh api --paginate "repos/$repo/issues?state=open&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | {number, title, labels, assignees, updatedAt: .updated_at}' \
+              | jq -c --arg cutoff "$cutoff" 'select(.updatedAt[0:10] < $cutoff)') || { echo "Cannot inspect stale issues in $repo" >&2; exit 1; }
+
+            if [ -z "$issues" ]; then
+              continue
+            fi
+
+              echo "$issues" | while read -r issue; do
+                num=$(echo "$issue" | jq -r .number)
+                labels=$(echo "$issue" | jq -r '[.labels[].name] | join(",")')
+                assignees=$(echo "$issue" | jq -r '[.assignees[].login] | join(",")')
+
+                # Пропускаем, если есть assignees
+                if [ -n "$assignees" ]; then
+                  echo "  #$num: skip (has assignee)"
+                  continue
+                fi
+
+                # Пропускаем, если уже released или in-review/in-develop/in-release
+                if echo "$labels" | grep -qwE 'status:(released|in-review|in-develop|in-release)'; then
+                  echo "  #$num: skip (active status)"
+                  continue
+                fi
+
+                # Пропускаем, если уже стоит coordination:needs-decision
+                if echo "$labels" | grep -qw 'coordination:needs-decision'; then
+                  echo "  #$num: skip (already needs-decision)"
+                  continue
+                fi
+
+                # Проверяем, эпик ли это (есть type:feature + area:hq или нет sub-tasks через 7 дней)
+                is_epic=false
+                if echo "$labels" | grep -qw 'area:hq' && echo "$labels" | grep -qwE 'type:feature|type:research'; then
+                  # Эпик = issue с type:feature|research и area:hq.
+                  # Проверяем body на ## Sub-tasks
+                  body=$(gh issue view "$num" --repo "$repo" --json body --jq '.body // ""' 2>/dev/null || echo "")
+                  if ! echo "$body" | grep -qiE '^##[[:space:]]*sub-tasks'; then
+                    created_cutoff=$(date -u -d '7 days ago' +%Y-%m-%d 2>/dev/null || \
+                                     date -u -v-7d +%Y-%m-%d)
+                    created_at=$(gh issue view "$num" --repo "$repo" --json createdAt --jq '.createdAt' 2>/dev/null | cut -c1-10 || echo "")
+                    if [ -n "$created_at" ] && [ "$created_at" \< "$created_cutoff" ]; then
+                      is_epic=true
+                      reason="epic без ## Sub-tasks более 7 дней"
+                    fi
+                  fi
+                fi
+
+                if [ "$is_epic" != "true" ]; then
+                  # По умолчанию — обычная stale-проверка (14 дней без активности).
+                  reason="нет активности более 14 дней"
+                fi
+
+                echo "  #$num → coordination:needs-decision ($reason)"
+                gh issue edit "$num" --repo "$repo" --add-label "coordination:needs-decision" 2>/dev/null || \
+                  echo "    (no edit access, skipping)"
+                comment_body="[lifecycle-bot] ⏰ Задача помечена как застрявшая: **$reason**. Нужно решение — принять, закрыть или эскалировать. См. saved view «Feature Planning»."
+                gh issue comment "$num" --repo "$repo" --body "$comment_body" 2>/dev/null || \
+                  echo "    (no comment access, skipping)"
+              done
+
+          done
