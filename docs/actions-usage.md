@@ -10,14 +10,14 @@ Develop Guard проверяет `main` push, удаление `develop` и ру
 
 2026-10-04 Issue Lifecycle Bot временно выключен в десяти приватных репозиториях для сохранения остатка квоты. На время паузы метки и комментарии после merge обновляются вручную.
 
-Сначала промоутить общую реализацию `.github` и этот workflow в `main` через обычный release PR, затем включить:
+Сначала промоутить общую реализацию `.github` в `main` через обычный release PR, затем включить callers. Общая реализация фильтрует старый hourly cron до выделения runner: обработка merge и ручной recovery работают даже до собственного release caller. Еженедельный fallback начнёт работать после промоута wrapper в его `main`.
 
 ```sh
 gh workflow enable issue-lifecycle-bot.yml -R min-null/.github
 gh workflow run issue-lifecycle-bot.yml -R min-null/.github --ref main
 ```
 
-Ручной запуск восстановит статусы merge за последние восемь дней. Расписание читается из `main`; включение старого файла вернёт почасовой расход. Публикация тегов и production deploy для этого изменения не нужны.
+Ручной запуск восстановит статусы merge за последние восемь дней. Расписание читается из `main`; hourly cron старого caller будет пропущен общим workflow без runner. Публикация тегов и production deploy для этого изменения не нужны.
 
 ## Проверка изменения
 
