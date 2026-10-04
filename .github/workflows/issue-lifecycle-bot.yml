@@ -26,7 +26,7 @@ concurrency:
 jobs:
   sync:
     if: >-
-      github.event_name == 'schedule' ||
+      (github.event_name == 'schedule' && github.event.schedule == '17 5 * * 1') ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'workflow_call' ||
       github.event.pull_request.merged == true
@@ -192,7 +192,7 @@ jobs:
   # Для эпиков: дополнительно проверяет наличие ## Sub-tasks (7 дней).
   # ---------------------------------------------------------------
   stale-detector:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+    if: (github.event_name == 'schedule' && github.event.schedule == '17 5 * * 1') || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
