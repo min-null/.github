@@ -18,6 +18,14 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
+
+# One authoritative policy check per pull request. A newer event, such as the
+# `labeled` event that applies the release label, supersedes an in-flight run
+# instead of racing it into a second, contradictory verdict.
+concurrency:
+  group: branch-policy-${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   branch-policy:
@@ -26,35 +34,142 @@ jobs:
     steps:
       - name: Validate pull request direction
         env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || '' }}
           BASE_BRANCH: ${{ inputs.base_ref || github.base_ref }}
           HEAD_BRANCH: ${{ inputs.head_ref || github.head_ref }}
-          LABELS: ${{ inputs.labels || join(github.event.pull_request.labels.*.name, ',') }}
+          EVENT_ACTION: ${{ github.event.action || 'workflow_call' }}
+          SNAPSHOT_LABELS: ${{ inputs.labels || join(github.event.pull_request.labels.*.name, ',') }}
+          RELEASE_LABEL: release
+          GRACE_ATTEMPTS: '6'
+          GRACE_INTERVAL_SECONDS: '10'
         shell: bash
         run: |
           set -euo pipefail
 
+          ALLOWED_DIRECTION="feature/fix -> develop, then develop -> main as a release PR carrying the \`release\` label"
+
+          write_summary() {
+            {
+              echo "### Branch Policy"
+              echo
+              echo "| Field | Value |"
+              echo "| --- | --- |"
+              echo "| Base | \`$BASE_BRANCH\` |"
+              echo "| Head | \`$HEAD_BRANCH\` |"
+              echo "| Event | \`$EVENT_ACTION\` |"
+            } >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          pass() {
+            write_summary
+            {
+              echo
+              echo "**Passed.** Direction and release label are valid."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Branch Policy passed for $HEAD_BRANCH -> $BASE_BRANCH."
+          }
+
+          fail() {
+            local title="$1"
+            local detail="$2"
+            echo "::error title=$title::$detail"
+            write_summary
+            {
+              echo
+              echo "**Blocked.** $detail"
+              echo
+              echo "**Allowed direction:** $ALLOWED_DIRECTION"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+
+          # Labels arrive newline separated from the API and comma separated in
+          # the event snapshot, so normalise both to one label per line.
+          has_release_label() {
+            printf '%s\n' "$1" | tr ',' '\n' | grep -Fxq -- "$RELEASE_LABEL"
+          }
+
+          # Single request returning "<state>|<comma separated labels>".
+          fetch_pull_request() {
+            gh api "repos/$REPO/pulls/$PR_NUMBER" \
+              --jq '.state + "|" + (.labels | map(.name) | join(","))'
+          }
+
+          # Direction is evaluated first and fails immediately: a wrong target
+          # branch is a real violation, never a timing artefact.
           case "$BASE_BRANCH" in
             develop)
               if [ "$HEAD_BRANCH" = "main" ]; then
-                echo "main must not be merged into develop through a feature PR." >&2
-                exit 1
+                fail "Branch Policy: main must not be merged into develop" \
+                  "\`main -> develop\` is not a valid integration path. Open the work as a feature/fix branch into \`develop\`."
               fi
+              # A valid feature/fix PR needs no release label at all.
+              pass
+              exit 0
               ;;
             main)
               if [ "$HEAD_BRANCH" != "develop" ]; then
-                echo "Only develop -> main release PRs are allowed." >&2
-                exit 1
+                fail "Branch Policy: only develop -> main is allowed into main" \
+                  "\`$HEAD_BRANCH -> main\` is not a valid release path. Merge the work into \`develop\` first, then promote \`develop -> main\`."
               fi
-              case ",$LABELS," in
-                *,release,*) ;;
-                *)
-                  echo "A develop -> main PR must carry the release label." >&2
-                  exit 1
-                  ;;
-              esac
               ;;
             *)
-              echo "PRs must target develop, or main for a labeled release promotion." >&2
-              exit 1
+              fail "Branch Policy: unsupported base branch" \
+                "\`$BASE_BRANCH\` is not an integration branch. Target \`develop\`, or \`main\` for a release promotion."
               ;;
           esac
+
+          # Only develop -> main reaches the release label gate. The label is
+          # applied through a separate API call after the pull request exists,
+          # so a freshly opened PR can legitimately look unlabelled. Trust the
+          # live API over the event snapshot, and only decide after a bounded
+          # grace period. Removing the label later raises `unlabeled`, which is
+          # a real policy violation and must fail immediately.
+          if has_release_label "$SNAPSHOT_LABELS"; then
+            pass
+            exit 0
+          fi
+
+          if [ "$EVENT_ACTION" = "unlabeled" ]; then
+            fail "Branch Policy: release PR must carry the release label" \
+              "The \`$RELEASE_LABEL\` label was removed from this \`develop -> main\` PR. Restore it before merging."
+          fi
+
+          # A workflow_call without pull request context can validate explicit
+          # inputs, but cannot perform a live API reread.
+          if [ -z "$PR_NUMBER" ]; then
+            fail "Branch Policy: release PR must carry the release label" \
+              "No live pull request context or \`$RELEASE_LABEL\` label input was provided for this \`develop -> main\` validation."
+          fi
+
+          attempt=1
+          while [ "$attempt" -le "$GRACE_ATTEMPTS" ]; do
+            echo "Release label not visible yet (check $attempt/$GRACE_ATTEMPTS); waiting ${GRACE_INTERVAL_SECONDS}s."
+            sleep "$GRACE_INTERVAL_SECONDS"
+
+            if ! pull_request="$(fetch_pull_request)"; then
+              fail "Branch Policy: unable to read live pull request state" \
+                "GitHub API did not return the current state and labels for PR #$PR_NUMBER. Retry the workflow after API access recovers."
+            fi
+
+            live_state="${pull_request%%|*}"
+            live_labels="${pull_request#*|}"
+
+            if [ "$live_state" != "open" ]; then
+              echo "Pull request is no longer open (state: $live_state); nothing left to enforce."
+              pass
+              exit 0
+            fi
+
+            if has_release_label "$live_labels"; then
+              pass
+              exit 0
+            fi
+
+            attempt=$((attempt + 1))
+          done
+
+          fail "Branch Policy: release PR must carry the release label" \
+            "No \`$RELEASE_LABEL\` label on this \`develop -> main\` PR after $GRACE_ATTEMPTS live checks. Add it, or retarget the pull request into \`develop\`."

@@ -14,8 +14,8 @@ name: Develop Guard
 #
 # Границы триггеров:
 #   push в main      — ловит наблюдаемый случай, удаление после release-мержа
-#   push в develop   — удаление в ходе интеграционной работы
-#   schedule         — ежедневная подстраховка; таймеры GitHub читают workflow
+#   delete develop    — восстановление после удаления; другие ветки пропускаются
+#   schedule         — еженедельная подстраховка; таймеры GitHub читают workflow
 #                      только из ветки по умолчанию, то есть работает лишь после
 #                      промоута этого файла в main
 #   workflow_dispatch — ручная проверка по требованию
@@ -24,20 +24,22 @@ name: Develop Guard
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
+  delete:
   schedule:
-    - cron: '17 4 * * *'
+    - cron: '17 4 * * 1'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: develop-guard-${{ github.ref }}
+  group: develop-guard
   cancel-in-progress: false
 
 jobs:
   guard:
+    if: github.event_name != 'delete' || (github.event.ref_type == 'branch' && github.event.ref == 'develop')
     name: Ensure develop exists
     runs-on: ubuntu-latest
     timeout-minutes: 5
