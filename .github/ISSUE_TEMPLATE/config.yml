@@ -2,6 +2,9 @@ contact_links:
   - name: MinChat HQ
     url: https://github.com/min-null/minchat-hq
     about: Координационный контур: product, research, legal, brand, roadmap
+  - name: Feature Pipeline
+    url: https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md
+    about: Статусы (inbox/pickable), гейты (needs:*), approval-флоу, agent self-check
   - name: Единый процесс разработки
     url: https://github.com/min-null/.github/blob/main/docs/development-flow.md
     about: Канонический документ по веткам, PR, release, deploy
@@ -13,5 +16,5 @@ contact_links:
     about: Product gate: пользователь, мотивация, UX, критерий успеха
   - name: Словарь labels
     url: https://github.com/min-null/.github/blob/main/docs/labels.md
-    about: type:*, area:*, coordination:*, risk:*
+    about: type:*, area:*, coordination:*, risk:*, status:*, needs:*
 blank_issues_enabled: false
