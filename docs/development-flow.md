@@ -8,6 +8,45 @@
 любого репозитория — **прав этот документ**. Расхождение нужно исправить, а не
 обойти.
 
+## Переход MinChat на Jenkins
+
+Для `minchat-ci`, `minchat-backend`, `minchat-frontend`, `minchat-frontend-web`
+и `minchat-ops` CI/CD переносится на VPS Jenkins в рамках
+[minchat-hq#142](https://github.com/min-null/minchat-hq/issues/142).
+После проверенного cutover действуют правила ниже; упоминания Actions в
+остальном документе описывают прежнюю реализацию и остальные репозитории.
+Веточная модель, release labels, согласованные теги и ручной контроль сохраняются.
+
+- GitHub отправляет `push`, `pull_request`, `issues`, `delete` в HTTPS webhook
+  worker. Worker проверяет HMAC, сохраняет события и передаёт их Jenkins.
+- PR gate состоит из успешных `minchat/branch-policy` и
+  `continuous-integration/jenkins/pr-merge` на текущем SHA. Backend job включает
+  полный pytest, contract drift, source/dependency security, secrets scan,
+  container scan и SBOM. Красный Jenkins gate блокирует приёмку.
+- Во время cutover проверенный Jenkins gate заменяет прежние Actions gates
+  этой задачи. Ошибка квоты старого runner не считается успешной проверкой.
+  После проверки checks, выпуска, автоматизаций и восстановления Actions
+  отключаются в настройках каждого перенесённого репозитория.
+- Push и PR запускают проверки. Dev-выпуск запускается явно в ручном
+  `minchat-release/dev-release`, читает доверенный develop, повторяет проверки,
+  публикует digest-pinned образы и поручает Ops deploy, smoke и BOM.
+- Отложенные пользователем Flutter checks и APK имеют статус `not_run`.
+  Они не объявляются зелёными и не запускаются агентом.
+- Производственный выпуск сохраняет пару одинаковых `release-*` тегов на
+  merge commits release PR в main, проверку успешных release gates и smoke.
+  До проверки замены координатора production Actions отключать нельзя;
+  первый подтверждённый deploy миграции выполняется только в dev.
+- Webhook worker заменяет branch lint, develop guard и issue lifecycle для
+  перенесённых репозиториев. Он имеет права только на выбранные репозитории.
+  Локальная issue закрывается по явной closing reference после merge в main;
+  cross-repo HQ parent закрывает integration owner. Approval labels бот не ставит.
+- Weekly reconciliation выполняется на CI VPS по понедельникам 05:17 UTC,
+  независимо от default branch GitHub. Сбой виден в health и журнале.
+
+Команды, credentials, recovery и ограничения среды принадлежат
+[minchat-ci runbook](https://github.com/min-null/minchat-ci/blob/develop/docs/setup.md)
+и [Ops runbook](https://github.com/min-null/minchat-ops/blob/develop/docs/release-process.md).
+
 ## Обязательные правила
 
 Этот раздел обязателен к прочтению агентом **до** создания ветки, до подготовки
