@@ -34,8 +34,10 @@
   Они не объявляются зелёными и не запускаются агентом.
 - Производственный выпуск сохраняет пару одинаковых `release-*` тегов на
   merge commits release PR в main, проверку успешных release gates и smoke.
-  До проверки замены координатора production Actions отключать нельзя;
-  первый подтверждённый deploy миграции выполняется только в dev.
+  Пользователь выбрал текущий сайт в dev как цель миграции; production-переезд
+  выполняется отдельной задачей. После dev cutover прежний Actions production
+  coordinator тоже отключается. Production не объявляется перенесённым и
+  требует отдельного runtime, gateway и проверенного координатора.
 - Webhook worker заменяет branch lint, develop guard и issue lifecycle для
   перенесённых репозиториев. Он имеет права только на выбранные репозитории.
   Локальная issue закрывается по явной closing reference после merge в main;
