@@ -30,8 +30,9 @@
 - Push и PR запускают проверки. Dev-выпуск запускается явно в ручном
   `minchat-release/dev-release`, читает доверенный develop, повторяет проверки,
   публикует digest-pinned образы и поручает Ops deploy, smoke и BOM.
-- Отложенные пользователем Flutter checks и APK имеют статус `not_run`.
-  Они не объявляются зелёными и не запускаются агентом.
+- Flutter tests выполняются только на CI VPS и входят в frontend PR gate
+  и dev-release. Пользователь разрешил удалённый запуск; локально на его
+  компьютере Dart/Flutter запрещены. Сборка APK остаётся отложенной (`not_run`).
 - Производственный выпуск сохраняет пару одинаковых `release-*` тегов на
   merge commits release PR в main, проверку успешных release gates и smoke.
   Пользователь выбрал текущий сайт в dev как цель миграции; production-переезд
