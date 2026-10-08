@@ -18,24 +18,31 @@
 Веточная модель, release labels, согласованные теги и ручной контроль сохраняются.
 
 - GitHub отправляет `push`, `pull_request`, `issues`, `delete` в HTTPS webhook
-  worker. Worker проверяет HMAC, сохраняет события и передаёт их Jenkins.
-- PR gate состоит из успешных `minchat/branch-policy` и
-  `continuous-integration/jenkins/pr-merge` на текущем SHA. Backend job включает
-  полный pytest, contract drift, source/dependency security, secrets scan,
-  container scan и SBOM. Красный Jenkins gate блокирует приёмку.
-- Во время cutover проверенный Jenkins gate заменяет прежние Actions gates
-  этой задачи. Ошибка квоты старого runner не считается успешной проверкой.
-  После проверки checks, выпуска, автоматизаций и восстановления Actions
-  отключаются в настройках каждого перенесённого репозитория.
-- Push и PR запускают проверки. Dev-выпуск запускается явно в ручном
-  `minchat-release/dev-release`, читает доверенный develop, повторяет проверки,
-  публикует digest-pinned образы и поручает Ops deploy, smoke и BOM.
+  worker. Worker проверяет HMAC и сохраняет события. Обычные push, commit,
+  merge и PR не запускают Jenkins quality/security checks или deploy.
+- В PR автоматически проверяется только `minchat/branch-policy`: направление
+  веток, имя feature-ветки и release label. Jenkins PR gate больше не требуется
+  перед merge в develop или main. Код принимается до CI-проверки; ошибки
+  обнаруживаются при выпуске по тегу.
+- Единственный обычный запуск CI/CD — пара одинаковых `release-<version>` тегов
+  в `minchat-backend` и `minchat-frontend-web`. Теги указывают на merge commits
+  release PR `develop -> main` с меткой `release`. Первый тег ждёт второй;
+  повторные webhook deliveries не создают повторный выпуск.
+- Когда пара готова, Jenkins проверяет происхождение тегов и выполняет полный
+  backend/client/security/Ops CI, затем собирает digest-pinned образы и
+  поручает Ops deploy, smoke и BOM. Красные проверки останавливают выпуск до
+  публикации и деплоя. Цель остаётся текущим dev-сайтом; production отдельно.
+- Вручную повторить неудачный выпуск можно только с существующей парой
+  release-тегов; пустой `RELEASE_TAG` и выпуск из develop запрещены.
+- Эта выбранная пользователем схема заменяет требования quality/Jenkins gates
+  до merge для пяти перечисленных репозиториев. Общие указания о PR quality
+  gates ниже продолжают действовать для остальных репозиториев организации.
 - Flutter tests и APK отложены пользователем для завершения миграции текущего
   сайта. Они имеют статус `not_run` и не входят в текущий frontend PR gate
   или dev-release. При последующем включении Flutter/Dart разрешены только
   на CI VPS, локальный запуск на компьютере пользователя запрещён.
 - Производственный выпуск сохраняет пару одинаковых `release-*` тегов на
-  merge commits release PR в main, проверку успешных release gates и smoke.
+  merge commits release PR в main, проверку release branch policy, полный CI после тега и smoke.
   Пользователь выбрал текущий сайт в dev как цель миграции; production-переезд
   выполняется отдельной задачей. После dev cutover прежний Actions production
   coordinator тоже отключается. Production не объявляется перенесённым и
