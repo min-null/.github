@@ -58,9 +58,7 @@
 [minchat-ci runbook](https://github.com/min-null/minchat-ci/blob/develop/docs/setup.md)
 и [Ops runbook](https://github.com/min-null/minchat-ops/blob/develop/docs/release-process.md).
 
-## Обязательные правила
-
-### Отдельная develop-среда на CI VPS
+## Отдельная develop-среда на CI VPS
 
 В рамках minchat-hq#149 появляется отдельная среда `dev.min-chat.online` на CI VPS.
 Подписанные push webhook для `develop` backend, web и общего frontend ставят
@@ -72,6 +70,8 @@ dev updater: полный release CI и основной сайт по-преж�
 согласованных release-тегов. Старое техническое окружение основного сайта не
 переименовывается этой задачей. Dev использует собственные данные и credentials.
 Dev reload не гарантирует непрерывность звонка и не заменяет release smoke.
+
+## Обязательные правила
 
 
 Этот раздел обязателен к прочтению агентом **до** создания ветки, до подготовки
