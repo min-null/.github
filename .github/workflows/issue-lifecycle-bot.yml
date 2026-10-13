@@ -68,25 +68,37 @@ jobs:
           # Step 3: process PRs. For PR event, just that one. For schedule, recent merges last eight days.
           process_pr() {
             local repo="$1" num="$2" base="$3" body="$4" pr_url="$5" head="$6" release_label="$7"
-            local issues
-            issues=$(echo "$body" | grep -oiE '(closes|fixes|resolves|fix|close)\s*#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
+            local issues closing_issues
+            # Два класса сигналов:
+            #   closing    — closes|fixes|resolves (+ fix|close). PR завершает задачу.
+            #   mentioning — refs|see|part of. PR лишь упоминает задачу (типично для
+            #                release-PR, где head-ветка `develop`, а в теле `Refs #N`).
+            # Короткая форма `Refs #N`. Длинная форма `Refs <repo>#N` тоже понимается,
+            # но только если `<repo>` — текущий репозиторий: кросс-репо бот не ведёт.
+            closing_issues=$(echo "$body" | grep -oiE '(closes|fixes|resolves|fix|close)[[:space:]]*#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
+            issues=$(echo "$body" | grep -oiE '(closes|fixes|resolves|fix|close|refs|see|part[ _-]?of)[[:space:]]*#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
+            local own_repo="${repo#*/}"
+            issues=$(printf '%s\n%s\n' "$issues" \
+              "$(echo "$body" | grep -oiE "(closes|fixes|resolves|fix|close|refs|see|part[ _-]?of)[[:space:]]+[A-Za-z0-9._-]*/${own_repo}[[:space:]]*#[0-9]+" | grep -oE '[0-9]+' | sort -u || true)" \
+              | grep -E '^[0-9]+$' | sort -u || true)
+            closing_issues=$(printf '%s\n%s\n' "$closing_issues" \
+              "$(echo "$body" | grep -oiE "(closes|fixes|resolves|fix|close)[[:space:]]+[A-Za-z0-9._-]*/${own_repo}[[:space:]]*#[0-9]+" | grep -oE '[0-9]+' | sort -u || true)" \
+              | grep -E '^[0-9]+$' | sort -u || true)
             if [ -z "$issues" ]; then
               issues=$(echo "$head" | grep -oE 'issues-[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
+              closing_issues="$issues"
             fi
             [ -z "$issues" ] && { echo "  $repo #$num: no linked issues, skip"; return 0; }
 
             local new_label comment close_issue
             if [ "$base" = "main" ]; then
               new_label=status:released
-              comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url})."
               close_issue=true
             elif [ "$release_label" = "true" ]; then
               new_label=status:in-release
-              comment="[lifecycle-bot] 🚀 Release PR opened: [#${num}](${pr_url})."
               close_issue=false
             elif [ "$base" = "develop" ]; then
               new_label=status:in-develop
-              comment="[lifecycle-bot] 🟢 Merged to \`develop\` via [#${num}](${pr_url})."
               close_issue=false
             else
               return 0
@@ -94,6 +106,27 @@ jobs:
 
             for issue in $issues; do
               echo "  $repo #$issue → $new_label"
+
+              # Комментарий зависит от того, закрывающий это PR или лишь упоминающий.
+              if echo "$closing_issues" | grep -qx "$issue"; then
+                comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url})."
+                if [ "$close_issue" = "true" ]; then
+                  comment="[lifecycle-bot] 🎉 Released to \`main\` and closed via [#${num}](${pr_url})."
+                fi
+              else
+                case "$new_label" in
+                  status:released)
+                    comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url}). Issue остаётся открытым: PR лишь упоминает задачу, а не закрывает её. Закрытие — за человеком."
+                    ;;
+                  status:in-release)
+                    comment="[lifecycle-bot] 🚀 Release PR opened: [#${num}](${pr_url})."
+                    ;;
+                  *)
+                    comment="[lifecycle-bot] 🟢 Merged to \`develop\` via [#${num}](${pr_url})."
+                    ;;
+                esac
+              fi
+
               if gh issue view "$issue" --repo "$repo" --json comments --jq '.comments[].body' 2>/dev/null | grep -Fxq -- "$comment"; then
                 echo "    (comment already exists)"
               elif gh issue comment "$issue" --repo "$repo" --body "$comment" 2>/dev/null; then
@@ -101,12 +134,22 @@ jobs:
               else
                 echo "    (no comment access, skipping comment)"
               fi
+
+              # Monotone status: ровно одна status-метка отражает текущее состояние.
+              local stale_labels
+              stale_labels=$(gh issue view "$issue" --repo "$repo" --json labels --jq '.labels[].name' 2>/dev/null \
+                | grep -E '^status:' | grep -vxF "$new_label" || true)
+              for stale in $stale_labels; do
+                gh issue edit "$issue" --repo "$repo" --remove-label "$stale" 2>/dev/null \
+                  && echo "    removed $stale"
+              done
+
               if gh issue edit "$issue" --repo "$repo" --add-label "$new_label" 2>/dev/null; then
                 :
               else
                 echo "    (no edit access, skipping label)"
               fi
-              if [ "$close_issue" = "true" ]; then
+              if [ "$close_issue" = "true" ] && echo "$closing_issues" | grep -qx "$issue"; then
                 gh issue close "$issue" --repo "$repo" --reason completed 2>/dev/null || \
                   echo "    (no close access, skipping close)"
               fi
