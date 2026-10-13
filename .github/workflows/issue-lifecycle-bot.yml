@@ -105,13 +105,13 @@ jobs:
             fi
 
             for issue in $issues; do
-              echo "  $repo #$issue в†’ $new_label"
+              echo "  $repo #$issue → $new_label"
 
               # Комментарий зависит от того, закрывающий это PR или лишь упоминающий.
               if echo "$closing_issues" | grep -qx "$issue"; then
-                comment="[lifecycle-bot] рџЋ‰ Released to \`main\` via [#${num}](${pr_url})."
+                comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url})."
                 if [ "$close_issue" = "true" ]; then
-                  comment="[lifecycle-bot] рџЋ‰ Released to \`main\` and closed via [#${num}](${pr_url})."
+                  comment="[lifecycle-bot] 🎉 Released to \`main\` and closed via [#${num}](${pr_url})."
                 fi
               else
                 case "$new_label" in
@@ -119,10 +119,10 @@ jobs:
                     comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url}). Issue остаётся открытым: PR лишь упоминает задачу, а не закрывает её. Закрытие — за человеком."
                     ;;
                   status:in-release)
-                    comment="[lifecycle-bot] рџљЂ Release PR opened: [#${num}](${pr_url})."
+                    comment="[lifecycle-bot] 🚀 Release PR opened: [#${num}](${pr_url})."
                     ;;
                   *)
-                    comment="[lifecycle-bot] рџџў Merged to \`develop\` via [#${num}](${pr_url})."
+                    comment="[lifecycle-bot] 🟢 Merged to \`develop\` via [#${num}](${pr_url})."
                     ;;
                 esac
               fi
@@ -223,15 +223,15 @@ jobs:
           # Бот ставит status:inbox
           gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "status:inbox" 2>/dev/null || \
             echo "  (no edit access, skipping)"
-          echo "Issue #$ISSUE_NUMBER в†’ status:inbox"
+          echo "Issue #$ISSUE_NUMBER → status:inbox"
 
   # ---------------------------------------------------------------
   # Stale-detector: ставит coordination:needs-decision на застрявшие issue.
   # Триггер: еженедельная подстраховка, только текущий репозиторий.
   # Исключения:
   #   - issue имеет assignees (кто-то работает)
-  #   - issue СѓР¶Рµ released
-  #   - СѓР¶Рµ РµСЃС‚СЊ coordination:needs-decision
+  #   - issue уже released
+  #   - уже есть coordination:needs-decision
   # Для эпиков: дополнительно проверяем наличие ## Sub-tasks (7 дней).
   # ---------------------------------------------------------------
   stale-detector:
@@ -316,7 +316,7 @@ jobs:
                       reason="нет активности более 14 дней"
                 fi
 
-                echo "  #$num в†’ coordination:needs-decision ($reason)"
+                echo "  #$num → coordination:needs-decision ($reason)"
                 gh issue edit "$num" --repo "$repo" --add-label "coordination:needs-decision" 2>/dev/null || \
                   echo "    (no edit access, skipping)"
                 comment_body="[lifecycle-bot] ⏰ Задача помечена как застрявшая: **$reason**. Нужно решение — принять, закрыть или эскалировать. См. saved view «Feature Planning»."
@@ -325,3 +325,113 @@ jobs:
               done
 
           done
+
+  # ---------------------------------------------------------------
+  # Label-reconciler: приводит существующие issue к монотонному status.
+  # Триггер: расписание, ручной запуск, вызов из репозитория-источника.
+  # Работает по всем issue, а не только по упомянутым в недавних PR,
+  # поэтому чинит хвост, накопившийся до появления монотонности.
+  #
+  # Правила:
+  #   - бот назначает только свои метки: inbox, in-review, in-develop,
+  #     in-release, released. pickable и backlog — решение человека.
+  #   - закрытые issue теряют все status:* кроме status:released.
+  #   - approval-метки, type/area/priority/needs/coordination не трогаются.
+  #   - прогон идемпотентен: чистое состояние не порождает изменений.
+  # ---------------------------------------------------------------
+  label-reconciler:
+    if: >-
+      github.event_name == 'workflow_call' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.event.schedule == '17 5 * * 1')
+    runs-on: ${{ vars.MINCHAT_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Reconcile status labels
+        env:
+          EVENT_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          FLOW_REPOS=("$EVENT_REPOSITORY")
+
+          # Ранг бот-управляемых меток. Больше — дальше по процессу.
+          rank_status() {
+            case "$1" in
+              status:released)  echo 5 ;;
+              status:in-release) echo 4 ;;
+              status:in-develop) echo 3 ;;
+              status:in-review)  echo 2 ;;
+              status:inbox)      echo 1 ;;
+              *)                 echo 0 ;;
+            esac
+          }
+
+          for repo in "${FLOW_REPOS[@]}"; do
+            echo "--- $repo (open) ---"
+
+            # Открытые issue с несколькими status:*.
+            gh api --paginate "repos/$repo/issues?state=open&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | {number, labels: [.labels[].name]}' \
+              | jq -c 'select([.labels[] | select(startswith("status:"))] | length > 1)' \
+              | while read -r issue; do
+                num=$(echo "$issue" | jq -r '.number')
+                keep=""
+                best=0
+                for l in $(echo "$issue" | jq -r '.labels[] | select(startswith("status:"))'); do
+                  r=$(rank_status "$l")
+                  if [ "$r" -gt "$best" ]; then
+                    best=$r
+                    keep="$l"
+                  fi
+                done
+
+                # Только pickable/backlog, без бот-меток: решение человека, не трогаем.
+                if [ "$best" -eq 0 ]; then
+                  echo "  #$num: skip (no bot-managed status)"
+                  continue
+                fi
+
+                echo "  #$num: keep $keep"
+                removed=""
+                for l in $(echo "$issue" | jq -r '.labels[] | select(startswith("status:"))'); do
+                  [ "$l" = "$keep" ] && continue
+                  if gh issue edit "$num" --repo "$repo" --remove-label "$l" 2>/dev/null; then
+                    echo "    removed $l"
+                    removed="$removed $l"
+                  fi
+                done
+
+                if [ -n "$removed" ]; then
+                  gh issue comment "$num" --repo "$repo" --body \
+                    "[lifecycle-bot] Метки статуса приведены в соответствие: оставлена \`$keep\` как дальнейшая по процессу. Снято:$removed. Правило «ровно одна \`status:*\` отражает текущее состояние»." \
+                    2>/dev/null || echo "    (no comment access, skipping comment)"
+                fi
+              done
+
+            echo "--- $repo (closed) ---"
+
+            # Закрытые issue: статус незавершённых работ здесь не имеет смысла.
+            gh api --paginate "repos/$repo/issues?state=closed&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | {number, labels: [.labels[].name]}' \
+              | jq -c 'select(any(.labels[]; startswith("status:")))' \
+              | while read -r issue; do
+                num=$(echo "$issue" | jq -r '.number')
+                removed=""
+                for l in $(echo "$issue" | jq -r '.labels[] | select(startswith("status:"))'); do
+                  [ "$l" = "status:released" ] && continue
+                  if gh issue edit "$num" --repo "$repo" --remove-label "$l" 2>/dev/null; then
+                    echo "  #$num: removed $l"
+                    removed="$removed $l"
+                  fi
+                done
+                if [ -n "$removed" ]; then
+                  gh issue comment "$num" --repo "$repo" --body \
+                    "[lifecycle-bot] Issue закрыта, незавершённые статусы сняты:$removed. Открытая задача больше не находится в пайплайне." \
+                    2>/dev/null || echo "  #$num: (no comment access, skipping comment)"
+                fi
+              done
+          done
+
+          echo "Reconcile done."
