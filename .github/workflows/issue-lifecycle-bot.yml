@@ -1,4 +1,4 @@
-name: Issue Lifecycle Bot
+﻿name: Issue Lifecycle Bot
 
 on:
   issues:
@@ -30,7 +30,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'workflow_call' ||
       github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.MINCHAT_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - name: Update linked issues
@@ -69,12 +69,12 @@ jobs:
           process_pr() {
             local repo="$1" num="$2" base="$3" body="$4" pr_url="$5" head="$6" release_label="$7"
             local issues closing_issues
-            # Два класса сигналов:
-            #   closing    — closes|fixes|resolves (+ fix|close). PR завершает задачу.
-            #   mentioning — refs|see|part of. PR лишь упоминает задачу (типично для
-            #                release-PR, где head-ветка `develop`, а в теле `Refs #N`).
-            # Короткая форма `Refs #N`. Длинная форма `Refs <repo>#N` тоже понимается,
-            # но только если `<repo>` — текущий репозиторий: кросс-репо бот не ведёт.
+            # Р”РІР° РєР»Р°СЃСЃР° СЃРёРіРЅР°Р»РѕРІ:
+            #   closing    вЂ” closes|fixes|resolves (+ fix|close). PR Р·Р°РІРµСЂС€Р°РµС‚ Р·Р°РґР°С‡Сѓ.
+            #   mentioning вЂ” refs|see|part of. PR Р»РёС€СЊ СѓРїРѕРјРёРЅР°РµС‚ Р·Р°РґР°С‡Сѓ (С‚РёРїРёС‡РЅРѕ РґР»СЏ
+            #                release-PR, РіРґРµ head-РІРµС‚РєР° `develop`, Р° РІ С‚РµР»Рµ `Refs #N`).
+            # РљРѕСЂРѕС‚РєР°СЏ С„РѕСЂРјР° `Refs #N`. Р”Р»РёРЅРЅР°СЏ С„РѕСЂРјР° `Refs <repo>#N` С‚РѕР¶Рµ РїРѕРЅРёРјР°РµС‚СЃСЏ,
+            # РЅРѕ С‚РѕР»СЊРєРѕ РµСЃР»Рё `<repo>` вЂ” С‚РµРєСѓС‰РёР№ СЂРµРїРѕР·РёС‚РѕСЂРёР№: РєСЂРѕСЃСЃ-СЂРµРїРѕ Р±РѕС‚ РЅРµ РІРµРґС‘С‚.
             closing_issues=$(echo "$body" | grep -oiE '(closes|fixes|resolves|fix|close)[[:space:]]*#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
             issues=$(echo "$body" | grep -oiE '(closes|fixes|resolves|fix|close|refs|see|part[ _-]?of)[[:space:]]*#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
             local own_repo="${repo#*/}"
@@ -105,24 +105,24 @@ jobs:
             fi
 
             for issue in $issues; do
-              echo "  $repo #$issue → $new_label"
+              echo "  $repo #$issue в†’ $new_label"
 
-              # Комментарий зависит от того, закрывающий это PR или лишь упоминающий.
+              # РљРѕРјРјРµРЅС‚Р°СЂРёР№ Р·Р°РІРёСЃРёС‚ РѕС‚ С‚РѕРіРѕ, Р·Р°РєСЂС‹РІР°СЋС‰РёР№ СЌС‚Рѕ PR РёР»Рё Р»РёС€СЊ СѓРїРѕРјРёРЅР°СЋС‰РёР№.
               if echo "$closing_issues" | grep -qx "$issue"; then
-                comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url})."
+                comment="[lifecycle-bot] рџЋ‰ Released to \`main\` via [#${num}](${pr_url})."
                 if [ "$close_issue" = "true" ]; then
-                  comment="[lifecycle-bot] 🎉 Released to \`main\` and closed via [#${num}](${pr_url})."
+                  comment="[lifecycle-bot] рџЋ‰ Released to \`main\` and closed via [#${num}](${pr_url})."
                 fi
               else
                 case "$new_label" in
                   status:released)
-                    comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url}). Issue остаётся открытым: PR лишь упоминает задачу, а не закрывает её. Закрытие — за человеком."
+                    comment="[lifecycle-bot] рџЋ‰ Released to \`main\` via [#${num}](${pr_url}). Issue РѕСЃС‚Р°С‘С‚СЃСЏ РѕС‚РєСЂС‹С‚С‹Рј: PR Р»РёС€СЊ СѓРїРѕРјРёРЅР°РµС‚ Р·Р°РґР°С‡Сѓ, Р° РЅРµ Р·Р°РєСЂС‹РІР°РµС‚ РµС‘. Р—Р°РєСЂС‹С‚РёРµ вЂ” Р·Р° С‡РµР»РѕРІРµРєРѕРј."
                     ;;
                   status:in-release)
-                    comment="[lifecycle-bot] 🚀 Release PR opened: [#${num}](${pr_url})."
+                    comment="[lifecycle-bot] рџљЂ Release PR opened: [#${num}](${pr_url})."
                     ;;
                   *)
-                    comment="[lifecycle-bot] 🟢 Merged to \`develop\` via [#${num}](${pr_url})."
+                    comment="[lifecycle-bot] рџџў Merged to \`develop\` via [#${num}](${pr_url})."
                     ;;
                 esac
               fi
@@ -135,7 +135,7 @@ jobs:
                 echo "    (no comment access, skipping comment)"
               fi
 
-              # Monotone status: ровно одна status-метка отражает текущее состояние.
+              # Monotone status: СЂРѕРІРЅРѕ РѕРґРЅР° status-РјРµС‚РєР° РѕС‚СЂР°Р¶Р°РµС‚ С‚РµРєСѓС‰РµРµ СЃРѕСЃС‚РѕСЏРЅРёРµ.
               local stale_labels
               stale_labels=$(gh issue view "$issue" --repo "$repo" --json labels --jq '.labels[].name' 2>/dev/null \
                 | grep -E '^status:' | grep -vxF "$new_label" || true)
@@ -190,12 +190,12 @@ jobs:
           fi
 
   # ---------------------------------------------------------------
-  # Inbox auto-stamper: ставит status:inbox на свежие issue без меток.
-  # Триггер: при открытии issue. Не трогает существующие метки.
+  # Inbox auto-stamper: СЃС‚Р°РІРёС‚ status:inbox РЅР° СЃРІРµР¶РёРµ issue Р±РµР· РјРµС‚РѕРє.
+  # РўСЂРёРіРіРµСЂ: РїСЂРё РѕС‚РєСЂС‹С‚РёРё issue. РќРµ С‚СЂРѕРіР°РµС‚ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ РјРµС‚РєРё.
   # ---------------------------------------------------------------
   inbox-stamper:
     if: github.event_name == 'issues' && github.event.action == 'opened'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.MINCHAT_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - name: Stamp status:inbox on unlabeled issue
@@ -206,37 +206,37 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # Убеждаемся, что метка существует
+          # РЈР±РµР¶РґР°РµРјСЃСЏ, С‡С‚Рѕ РјРµС‚РєР° СЃСѓС‰РµСЃС‚РІСѓРµС‚
           gh label create "status:inbox" --color "fef2c0" \
-            --description "Новая issue, не разобрана. Бот ставит автоматически" \
+            --description "РќРѕРІР°СЏ issue, РЅРµ СЂР°Р·РѕР±СЂР°РЅР°. Р‘РѕС‚ СЃС‚Р°РІРёС‚ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё" \
             --repo "$REPO" --force >/dev/null 2>&1 || true
 
-          # Получаем текущие метки issue
+          # РџРѕР»СѓС‡Р°РµРј С‚РµРєСѓС‰РёРµ РјРµС‚РєРё issue
           current_labels=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null || echo "")
 
-          # Не трогаем, если уже есть какие-то метки (значит, человек уже разбирает)
+          # РќРµ С‚СЂРѕРіР°РµРј, РµСЃР»Рё СѓР¶Рµ РµСЃС‚СЊ РєР°РєРёРµ-С‚Рѕ РјРµС‚РєРё (Р·РЅР°С‡РёС‚, С‡РµР»РѕРІРµРє СѓР¶Рµ СЂР°Р·Р±РёСЂР°РµС‚)
           if [ -n "$current_labels" ]; then
             echo "Issue #$ISSUE_NUMBER already has labels ($current_labels), skip"
             exit 0
           fi
 
-          # Бот ставит status:inbox
+          # Р‘РѕС‚ СЃС‚Р°РІРёС‚ status:inbox
           gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --add-label "status:inbox" 2>/dev/null || \
             echo "  (no edit access, skipping)"
-          echo "Issue #$ISSUE_NUMBER → status:inbox"
+          echo "Issue #$ISSUE_NUMBER в†’ status:inbox"
 
   # ---------------------------------------------------------------
-  # Stale-detector: ставит coordination:needs-decision на застрявшие issue.
-  # Триггер: еженедельная подстраховка, только текущий репозиторий.
-  # Исключения:
-  #   - issue имеет assignees (кто-то работает)
-  #   - issue уже released
-  #   - уже есть coordination:needs-decision
-  # Для эпиков: дополнительно проверяет наличие ## Sub-tasks (7 дней).
+  # Stale-detector: СЃС‚Р°РІРёС‚ coordination:needs-decision РЅР° Р·Р°СЃС‚СЂСЏРІС€РёРµ issue.
+  # РўСЂРёРіРіРµСЂ: РµР¶РµРЅРµРґРµР»СЊРЅР°СЏ РїРѕРґСЃС‚СЂР°С…РѕРІРєР°, С‚РѕР»СЊРєРѕ С‚РµРєСѓС‰РёР№ СЂРµРїРѕР·РёС‚РѕСЂРёР№.
+  # РСЃРєР»СЋС‡РµРЅРёСЏ:
+  #   - issue РёРјРµРµС‚ assignees (РєС‚Рѕ-С‚Рѕ СЂР°Р±РѕС‚Р°РµС‚)
+  #   - issue СѓР¶Рµ released
+  #   - СѓР¶Рµ РµСЃС‚СЊ coordination:needs-decision
+  # Р”Р»СЏ СЌРїРёРєРѕРІ: РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕ РїСЂРѕРІРµСЂСЏРµС‚ РЅР°Р»РёС‡РёРµ ## Sub-tasks (7 РґРЅРµР№).
   # ---------------------------------------------------------------
   stale-detector:
     if: (github.event_name == 'schedule' && github.event.schedule == '17 5 * * 1') || github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.MINCHAT_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - name: Detect stale issues
@@ -256,10 +256,10 @@ jobs:
           for repo in "${FLOW_REPOS[@]}"; do
             echo "--- $repo ---"
             ensure_label "coordination:needs-decision" "fbc740" \
-              "Задача застряла, нужно решение" "$repo"
+              "Р—Р°РґР°С‡Р° Р·Р°СЃС‚СЂСЏР»Р°, РЅСѓР¶РЅРѕ СЂРµС€РµРЅРёРµ" "$repo"
 
-            # Получаем открытые issue, обновлённые более 14 дней назад.
-            # REST API пагинируется один раз; фильтрация по updated_at локальная.
+            # РџРѕР»СѓС‡Р°РµРј РѕС‚РєСЂС‹С‚С‹Рµ issue, РѕР±РЅРѕРІР»С‘РЅРЅС‹Рµ Р±РѕР»РµРµ 14 РґРЅРµР№ РЅР°Р·Р°Рґ.
+            # REST API РїР°РіРёРЅРёСЂСѓРµС‚СЃСЏ РѕРґРёРЅ СЂР°Р·; С„РёР»СЊС‚СЂР°С†РёСЏ РїРѕ updated_at Р»РѕРєР°Р»СЊРЅР°СЏ.
             cutoff=$(date -u -d '14 days ago' +%Y-%m-%d 2>/dev/null || \
                      date -u -v-14d +%Y-%m-%d)
 
@@ -276,29 +276,29 @@ jobs:
                 labels=$(echo "$issue" | jq -r '[.labels[].name] | join(",")')
                 assignees=$(echo "$issue" | jq -r '[.assignees[].login] | join(",")')
 
-                # Пропускаем, если есть assignees
+                # РџСЂРѕРїСѓСЃРєР°РµРј, РµСЃР»Рё РµСЃС‚СЊ assignees
                 if [ -n "$assignees" ]; then
                   echo "  #$num: skip (has assignee)"
                   continue
                 fi
 
-                # Пропускаем, если уже released или in-review/in-develop/in-release
+                # РџСЂРѕРїСѓСЃРєР°РµРј, РµСЃР»Рё СѓР¶Рµ released РёР»Рё in-review/in-develop/in-release
                 if echo "$labels" | grep -qwE 'status:(released|in-review|in-develop|in-release)'; then
                   echo "  #$num: skip (active status)"
                   continue
                 fi
 
-                # Пропускаем, если уже стоит coordination:needs-decision
+                # РџСЂРѕРїСѓСЃРєР°РµРј, РµСЃР»Рё СѓР¶Рµ СЃС‚РѕРёС‚ coordination:needs-decision
                 if echo "$labels" | grep -qw 'coordination:needs-decision'; then
                   echo "  #$num: skip (already needs-decision)"
                   continue
                 fi
 
-                # Проверяем, эпик ли это (есть type:feature + area:hq или нет sub-tasks через 7 дней)
+                # РџСЂРѕРІРµСЂСЏРµРј, СЌРїРёРє Р»Рё СЌС‚Рѕ (РµСЃС‚СЊ type:feature + area:hq РёР»Рё РЅРµС‚ sub-tasks С‡РµСЂРµР· 7 РґРЅРµР№)
                 is_epic=false
                 if echo "$labels" | grep -qw 'area:hq' && echo "$labels" | grep -qwE 'type:feature|type:research'; then
-                  # Эпик = issue с type:feature|research и area:hq.
-                  # Проверяем body на ## Sub-tasks
+                  # Р­РїРёРє = issue СЃ type:feature|research Рё area:hq.
+                  # РџСЂРѕРІРµСЂСЏРµРј body РЅР° ## Sub-tasks
                   body=$(gh issue view "$num" --repo "$repo" --json body --jq '.body // ""' 2>/dev/null || echo "")
                   if ! echo "$body" | grep -qiE '^##[[:space:]]*sub-tasks'; then
                     created_cutoff=$(date -u -d '7 days ago' +%Y-%m-%d 2>/dev/null || \
@@ -306,20 +306,20 @@ jobs:
                     created_at=$(gh issue view "$num" --repo "$repo" --json createdAt --jq '.createdAt' 2>/dev/null | cut -c1-10 || echo "")
                     if [ -n "$created_at" ] && [ "$created_at" \< "$created_cutoff" ]; then
                       is_epic=true
-                      reason="epic без ## Sub-tasks более 7 дней"
+                      reason="epic Р±РµР· ## Sub-tasks Р±РѕР»РµРµ 7 РґРЅРµР№"
                     fi
                   fi
                 fi
 
                 if [ "$is_epic" != "true" ]; then
-                  # По умолчанию — обычная stale-проверка (14 дней без активности).
-                  reason="нет активности более 14 дней"
+                  # РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ вЂ” РѕР±С‹С‡РЅР°СЏ stale-РїСЂРѕРІРµСЂРєР° (14 РґРЅРµР№ Р±РµР· Р°РєС‚РёРІРЅРѕСЃС‚Рё).
+                  reason="РЅРµС‚ Р°РєС‚РёРІРЅРѕСЃС‚Рё Р±РѕР»РµРµ 14 РґРЅРµР№"
                 fi
 
-                echo "  #$num → coordination:needs-decision ($reason)"
+                echo "  #$num в†’ coordination:needs-decision ($reason)"
                 gh issue edit "$num" --repo "$repo" --add-label "coordination:needs-decision" 2>/dev/null || \
                   echo "    (no edit access, skipping)"
-                comment_body="[lifecycle-bot] ⏰ Задача помечена как застрявшая: **$reason**. Нужно решение — принять, закрыть или эскалировать. См. saved view «Feature Planning»."
+                comment_body="[lifecycle-bot] вЏ° Р—Р°РґР°С‡Р° РїРѕРјРµС‡РµРЅР° РєР°Рє Р·Р°СЃС‚СЂСЏРІС€Р°СЏ: **$reason**. РќСѓР¶РЅРѕ СЂРµС€РµРЅРёРµ вЂ” РїСЂРёРЅСЏС‚СЊ, Р·Р°РєСЂС‹С‚СЊ РёР»Рё СЌСЃРєР°Р»РёСЂРѕРІР°С‚СЊ. РЎРј. saved view В«Feature PlanningВ»."
                 gh issue comment "$num" --repo "$repo" --body "$comment_body" 2>/dev/null || \
                   echo "    (no comment access, skipping)"
               done
