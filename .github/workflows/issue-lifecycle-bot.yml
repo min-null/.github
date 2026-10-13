@@ -1,4 +1,4 @@
-﻿name: Issue Lifecycle Bot
+name: Issue Lifecycle Bot
 
 on:
   issues:
