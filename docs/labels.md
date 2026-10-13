@@ -34,6 +34,22 @@ Project-поля `Status / Priority / Area / Target release / Size / Risk`
 | `area:ops` | `minchat-ops` |
 | `area:hq` | `minchat-hq` (coordinator по умолчанию) |
 
+## Priority (насколько срочно)
+
+Обязательное условие `status:pickable`: без `priority:*` задача не может быть
+поднята в борт (см. `minchat-hq/docs/process/feature-pipeline/rules.md`, условие 5).
+
+| Label | Когда |
+|---|---|
+| `priority:critical` | Ломает основной сценарий, обхода нет |
+| `priority:high` | Нужен в ближайшем цикле |
+| `priority:medium` | Важен, но не блокирует |
+| `priority:low` | Можно сделать позже, влияния нет |
+
+`priority:high` появился раньше остальных и исторически используется шире всех,
+поэтому в шкале их четыре. Новые задачи выбирают значение осознанно; проставка
+приоритета — решение человека, агент только предлагает.
+
 ## Coordination (как)
 
 | Label | Когда |
