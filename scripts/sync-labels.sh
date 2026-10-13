@@ -63,4 +63,32 @@ gh label create "design:approved"   --color "0e8a16" --description "Дизайн
 gh label create "contract:approved" --color "0e8a16" --description "Контракт утверждён. Закрывает needs:contract" --repo "$REPO" || true
 gh label create "adr:approved"      --color "0e8a16" --description "ADR принят. Закрывает needs:adr"             --repo "$REPO" || true
 
+# ---- Priority ----
+# Канон minchat-hq/docs/process/feature-pipeline/rules.md:31 обещает
+# priority:critical | priority:medium | priority:low.
+# priority:high исторически используется шире всех — не удаляется.
+gh label create "priority:critical" --color "b60205" --description "Критичный: ломает основной сценарий, обхода нет" --repo "$REPO" || true
+gh label create "priority:high"     --color "1d76db" --description "Высокий: нужен в ближайшем цикле"                     --repo "$REPO" || true
+gh label create "priority:medium"   --color "fbca04" --description "Средний: важен, но не блокирует"                     --repo "$REPO" || true
+gh label create "priority:low"      --color "c2e0c6" --description "Низкий: можно сделать позже, влияния нет"          --repo "$REPO" || true
+
+# ---- Status ----
+gh label create "status:inbox"     --color "fef2c0" --description "Новая issue, не разобрана. Бот ставит автоматически" --repo "$REPO" || true
+gh label create "status:backlog"   --color "d4c5f9" --description "Описана, ждёт решения или очереди"                 --repo "$REPO" || true
+gh label create "status:pickable"  --color "0E8A16" --description "Готова к работе: задача описана и разрешена владельцем" --repo "$REPO" || true
+gh label create "status:in-review" --color "fbca04" --description "Открыт PR, ссылающийся на задачу"                  --repo "$REPO" || true
+gh label create "status:in-develop" --color "0e8a16" --description "Смёржено в develop"                                --repo "$REPO" || true
+gh label create "status:in-release" --color "bfdadc" --description "Открыт release PR develop → main"                   --repo "$REPO" || true
+gh label create "status:released"  --color "0075ca" --description "Выпущено в main"                                   --repo "$REPO" || true
+
+# ---- Needs / approval gates ----
+gh label create "needs:research" --color "5319e7" --description "Нужно исследование перед работой" --repo "$REPO" || true
+gh label create "needs:spec"     --color "5319e7" --description "Нужна спецификация перед работой" --repo "$REPO" || true
+gh label create "needs:design"   --color "5319e7" --description "Нужен дизайн до реализации"      --repo "$REPO" || true
+gh label create "needs:contract" --color "5319e7" --description "Нужен контракт до реализации"    --repo "$REPO" || true
+gh label create "needs:adr"      --color "5319e7" --description "Нужен ADR до реализации"         --repo "$REPO" || true
+gh label create "design:approved"   --color "0e8a16" --description "Дизайн утверждён владельцем"    --repo "$REPO" || true
+gh label create "contract:approved" --color "0e8a16" --description "Контракт утверждён владельцем"  --repo "$REPO" || true
+gh label create "adr:approved"      --color "0e8a16" --description "ADR утверждён владельцем"       --repo "$REPO" || true
+
 echo "Labels in $REPO are in sync with docs/labels.md."
