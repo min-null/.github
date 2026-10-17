@@ -50,7 +50,9 @@
 - Webhook worker заменяет branch lint, develop guard и issue lifecycle для
   перенесённых репозиториев. Он имеет права только на выбранные репозитории.
   Локальная issue закрывается по явной closing reference после merge в main;
-  cross-repo HQ parent закрывает integration owner. Approval labels бот не ставит.
+  cross-repo HQ parent закрывает integration owner. Статусные метки и approval
+  labels бот не выдумывает: `readiness-gate` только проверяет обоснованность
+  `status:pickable` и снимает её, если задача не готова.
 - Weekly reconciliation выполняется на CI VPS по понедельникам 05:17 UTC,
   независимо от default branch GitHub. Сбой виден в health и журнале.
 

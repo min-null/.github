@@ -48,7 +48,7 @@ Project-поля `Status / Priority / Area / Target release / Size / Risk`
 
 `priority:high` появился раньше остальных и исторически используется шире всех,
 поэтому в шкале их четыре. Новые задачи выбирают значение осознанно; проставка
-приоритета — решение человека, агент только предлагает.
+приоритета — решение владельца, агент предлагает и аргументирует.
 
 ## Coordination (как)
 
@@ -74,30 +74,45 @@ Project-поля `Status / Priority / Area / Target release / Size / Risk`
 | Label | Когда | Кто ставит |
 |---|---|---|
 | `status:inbox` | Новая, не разобрана. Бот ставит автоматически на issue без меток. | Бот |
-| `status:backlog` | Разобрана, отложена. Не в этой итерации. | Человек |
-| `status:pickable` | Готова к работе, можно брать. Бот проверяет 7 условий (см. rules.md). | Человек (после ручной проверки) |
+| `status:backlog` | Разобрана, отложена. Не в этой итерации. | Человек или Product Owner |
+| `status:pickable` | Готова к работе, можно брать. Проверяется джобом `readiness-gate` по 6 условиям (см. [rules.md](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/rules.md)). | Человек или Product Owner |
+
+> С 17.10.2026 `status:pickable` ставится человеком **или** Product Owner под мандатом
+> ([product-owner/README.md](https://github.com/min-null/minchat-hq/blob/main/docs/process/product-owner/README.md)).
+> Бот не ставит её — он проверяет обоснованность и снимает, если задача не готова.
 
 ## Gate (feature-pipeline)
 
-Гейты блокируют переход в `status:pickable`. Пока стоит хоть один `needs:*` — issue не pickable.
+**Гейты больше не блокируют переход в `status:pickable`.** С 17.10.2026 задача с
+открытым `needs:design` берётся в работу. Метки остались как список «что ещё стоит
+доделать для удобства».
 
-| Label | Когда закрывается |
+Условие «все `needs:*` закрыты `*:approved`» было седьмым из семи и требовало
+человека. Оно удалено, и правило теперь исполняется кодом, а не договорённостью.
+
+| Label | Когда снимается |
 |---|---|
 | `needs:research` | После проведения research и занесения результатов в issue body |
-| `needs:spec` | Автоматически — когда в body появляется секция `## Acceptance criteria` |
-| `needs:design` | Меткой `design:approved` |
-| `needs:contract` | Меткой `contract:approved` |
-| `needs:adr` | Меткой `adr:approved` |
+| `needs:spec` | Когда в body появляется секция `## Acceptance criteria` или чеклист |
+| `needs:design` | Когда артефакт дизайна приложен к issue |
+| `needs:contract` | Когда контракт опубликован и ссылка добавлена в issue |
+| `needs:adr` | Когда ADR опубликован |
 
 ## Approval (feature-pipeline)
 
-Закрывают гейты. Только человек с правом решения (обычно `linzer0`). Бот не ставит.
+**Информационные метки.** Они не закрывают гейт и не дают пропуска: задача берётся
+без них. Ставить может человек или Product Owner — но только если решение реально
+принято и записано в issue текстом, с владельцем и датой. Метка без текста решения
+утверждает, что одобрение есть, а его нет.
 
-| Label | Закрывает |
+Если без решения **начать нельзя**, это пишется в acceptance criteria задачи — там
+это настоящее требование, а не цветная метка.
+
+| Label | Что означает |
 |---|---|
-| `design:approved` | `needs:design` |
-| `contract:approved` | `needs:contract` |
-| `adr:approved` | `needs:adr` |
+| `design:approved` | Дизайн принят, решение записано в issue |
+| `contract:approved` | Контракт принят |
+| `adr:approved` | ADR принят |
 
 ## Что НЕ используется как label
 

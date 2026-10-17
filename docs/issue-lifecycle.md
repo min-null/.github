@@ -11,10 +11,28 @@ Issue, привязанный к PR, проходит через состоян�
 | Состояние | Переход | Метка | Кто ставит |
 |---|---|---|---|
 | `inbox` | создана новая issue без меток | `status:inbox` | Бот (auto) |
-| `backlog` | разобрана, отложена | `status:backlog` | Человек |
-| `pickable` | готова к работе, можно брать | `status:pickable` | Человек (после проверки 7 условий) |
+| `backlog` | разобрана, отложена | `status:backlog` | Человек или Product Owner |
+| `pickable` | готова к работе, можно брать | `status:pickable` | Человек или Product Owner |
 
-Бот **не** переводит issue из `inbox` в `backlog`/`pickable` автоматически — это делает человек. Бот только ставит `inbox` на свежую issue.
+Бот **не** переводит issue из `inbox` в `backlog`/`pickable` автоматически — это
+решение человека или Product Owner под мандатом
+([product-owner/README.md](https://github.com/min-null/minchat-hq/blob/main/docs/process/product-owner/README.md)).
+Бот ставит `inbox` на свежую issue и **проверяет обоснованность** `status:pickable`.
+
+### Readiness-gate
+
+Джоб `readiness-gate` в `issue-lifecycle-bot.yml` срабатывает, когда issue получила
+`status:pickable`, и проверяет 6 условий: описание, acceptance criteria,
+`type:*` / `area:*` / `priority:*`, отсутствие `coordination:blocked`, не эпик.
+
+- Готово — бот молчит.
+- Не готово — снимает `status:pickable` и один раз пишет, чего не хватает
+  (повторный комментарий не дублируется).
+
+Ни одно из шести условий не требует решения человека. Гейты `needs:*` и
+approval-метки `*:approved` в проверке **не участвуют** — они остались навигацией.
+Раньше это было только прозой, и убрать гейт было нечего: теперь правило исполняется
+кодом (`scripts/lib/readiness.sh`, тесты — `scripts/test-readiness.sh`).
 
 ### Автоматические состояния (PR-привязанные)
 
@@ -34,7 +52,7 @@ Issue, привязанный к PR, проходит через состоян�
 1. **Любая застрявшая issue** (любого типа — эпики, фичи, баги): нет активности (комментариев, label changes, assign changes) **14 дней** → автоматически ставит `coordination:needs-decision` и пишет комментарий. **Исключение**: если есть `assignee` — не трогать.
 2. **Эпики без `## Sub-tasks` 7 дней**: эпик-issues без секции `## Sub-tasks` через 7 дней после создания → `coordination:needs-decision` с предложением «разбить на sub-tasks или закрыть».
 
-Метка `coordination:needs-decision` снимается **только человеком** (или автоматически при `status:released`).
+Метку `coordination:needs-decision` снимает тот, кто решил: владелец или Product Owner (автоматически — при `status:released`).
 
 Застрявшие задачи попадают в saved view «Feature Planning» (filter: `is:open label:coordination:needs-decision`).
 
@@ -97,8 +115,8 @@ Workflow в `.github/.github/workflows/issue-lifecycle-bot.yml`. Триггер�
 issue открыт
     │
     ▼ (бот) status:inbox
-    │   разобрана → status:backlog (человек)
-    │   готова    → status:pickable (человек, после 7 условий)
+    │   разобрана → status:backlog (человек или PO)
+    │   готова    → status:pickable (человек или PO, проверяет readiness-gate)
     │   в работе  → branch + PR (Closes #N)
     ▼
 status:in-review

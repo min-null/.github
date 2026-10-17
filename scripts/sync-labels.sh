@@ -47,21 +47,22 @@ gh label create "risk:release"   --color "b60205" --description "Release risk"  
 # Слоты готовности. Дополняют автоматические status:in-review/in-develop/in-release/released.
 gh label create "status:inbox"   --color "fef2c0" --description "Новая issue, не разобрана. Бот ставит автоматически" --repo "$REPO" || true
 gh label create "status:backlog" --color "d4c5f9" --description "Разобрана, отложена. Не в этой итерации"             --repo "$REPO" || true
-gh label create "status:pickable" --color "0e8a16" --description "Готова к работе, можно брать. Бот проверяет 7 условий" --repo "$REPO" || true
+gh label create "status:pickable" --color "0e8a16" --description "Готова к работе, можно брать. Проверяется readiness-gate по 6 условиям" --repo "$REPO" || true
 
 # ---- Gate (feature-pipeline) ----
-# Гейты блокируют переход в status:pickable.
-gh label create "needs:research" --color "fbca04" --description "Нужен research по задаче (что и как делать)"           --repo "$REPO" || true
-gh label create "needs:spec"     --color "fef2c0" --description "Нет полного описания или acceptance criteria в body"     --repo "$REPO" || true
-gh label create "needs:design"   --color "7057ff" --description "Нужен дизайн (UI-фичи). Закрывается design:approved"   --repo "$REPO" || true
-gh label create "needs:contract" --color "8a2be2" --description "Нужен контракт (API/shared). Закрывается contract:approved" --repo "$REPO" || true
-gh label create "needs:adr"      --color "bfd4f2" --description "Нужен ADR (технический выбор). Закрывается adr:approved" --repo "$REPO" || true
+# С 17.10.2026 навигационные: НЕ блокируют переход в status:pickable.
+gh label create "needs:research" --color "fbca04" --description "Нужен research по задаче (что и как делать). Навигационная метка"           --repo "$REPO" || true
+gh label create "needs:spec"     --color "fef2c0" --description "Нет полного описания или acceptance criteria. Навигационная метка"           --repo "$REPO" || true
+gh label create "needs:design"   --color "7057ff" --description "Нужен дизайн (UI-фичи). Навигационная метка, работу не блокирует"        --repo "$REPO" || true
+gh label create "needs:contract" --color "8a2be2" --description "Нужен контракт (API/shared). Навигационная метка, работу не блокирует"   --repo "$REPO" || true
+gh label create "needs:adr"      --color "bfd4f2" --description "Нужен ADR (технический выбор). Навигационная метка, работу не блокирует" --repo "$REPO" || true
 
 # ---- Approval (feature-pipeline) ----
-# Только человек (обычно linzer0). Снимает соответствующий needs:*.
-gh label create "design:approved"   --color "0e8a16" --description "Дизайн утверждён. Закрывает needs:design"   --repo "$REPO" || true
-gh label create "contract:approved" --color "0e8a16" --description "Контракт утверждён. Закрывает needs:contract" --repo "$REPO" || true
-gh label create "adr:approved"      --color "0e8a16" --description "ADR принят. Закрывает needs:adr"             --repo "$REPO" || true
+# Информационные с 17.10.2026: не блокируют и не выдаются автоматически.
+# Ставятся только под реально принятое и записанное в issue решение.
+gh label create "design:approved"   --color "0e8a16" --description "Дизайн принят, решение записано в issue. Информационная метка"     --repo "$REPO" || true
+gh label create "contract:approved" --color "0e8a16" --description "Контракт принят. Информационная метка"                            --repo "$REPO" || true
+gh label create "adr:approved"      --color "0e8a16" --description "ADR принят. Информационная метка"                                --repo "$REPO" || true
 
 # ---- Priority ----
 # Канон minchat-hq/docs/process/feature-pipeline/rules.md:31 обещает
@@ -75,20 +76,20 @@ gh label create "priority:low"      --color "c2e0c6" --description "Низкий
 # ---- Status ----
 gh label create "status:inbox"     --color "fef2c0" --description "Новая issue, не разобрана. Бот ставит автоматически" --repo "$REPO" || true
 gh label create "status:backlog"   --color "d4c5f9" --description "Описана, ждёт решения или очереди"                 --repo "$REPO" || true
-gh label create "status:pickable"  --color "0E8A16" --description "Готова к работе: задача описана и разрешена владельцем" --repo "$REPO" || true
+gh label create "status:pickable"  --color "0E8A16" --description "Готова к работе: задача описана, размечена и не заблокирована" --repo "$REPO" || true
 gh label create "status:in-review" --color "fbca04" --description "Открыт PR, ссылающийся на задачу"                  --repo "$REPO" || true
 gh label create "status:in-develop" --color "0e8a16" --description "Смёржено в develop"                                --repo "$REPO" || true
 gh label create "status:in-release" --color "bfdadc" --description "Открыт release PR develop → main"                   --repo "$REPO" || true
 gh label create "status:released"  --color "0075ca" --description "Выпущено в main"                                   --repo "$REPO" || true
 
-# ---- Needs / approval gates ----
-gh label create "needs:research" --color "5319e7" --description "Нужно исследование перед работой" --repo "$REPO" || true
-gh label create "needs:spec"     --color "5319e7" --description "Нужна спецификация перед работой" --repo "$REPO" || true
-gh label create "needs:design"   --color "5319e7" --description "Нужен дизайн до реализации"      --repo "$REPO" || true
-gh label create "needs:contract" --color "5319e7" --description "Нужен контракт до реализации"    --repo "$REPO" || true
-gh label create "needs:adr"      --color "5319e7" --description "Нужен ADR до реализации"         --repo "$REPO" || true
-gh label create "design:approved"   --color "0e8a16" --description "Дизайн утверждён владельцем"    --repo "$REPO" || true
-gh label create "contract:approved" --color "0e8a16" --description "Контракт утверждён владельцем"  --repo "$REPO" || true
-gh label create "adr:approved"      --color "0e8a16" --description "ADR утверждён владельцем"       --repo "$REPO" || true
+# ---- Needs / approval: навигационные с 17.10.2026, работу не блокируют ----
+gh label create "needs:research" --color "5319e7" --description "Нужно исследование. Навигационная метка"     --repo "$REPO" || true
+gh label create "needs:spec"     --color "5319e7" --description "Нужна спецификация. Навигационная метка"       --repo "$REPO" || true
+gh label create "needs:design"   --color "5319e7" --description "Нужен дизайн. Навигационная метка"              --repo "$REPO" || true
+gh label create "needs:contract" --color "5319e7" --description "Нужен контракт. Навигационная метка"            --repo "$REPO" || true
+gh label create "needs:adr"      --color "5319e7" --description "Нужен ADR. Навигационная метка"                 --repo "$REPO" || true
+gh label create "design:approved"   --color "0e8a16" --description "Дизайн принят, решение записано. Информационная метка" --repo "$REPO" || true
+gh label create "contract:approved" --color "0e8a16" --description "Контракт принят. Информационная метка"                  --repo "$REPO" || true
+gh label create "adr:approved"      --color "0e8a16" --description "ADR принят. Информационная метка"                          --repo "$REPO" || true
 
 echo "Labels in $REPO are in sync with docs/labels.md."
