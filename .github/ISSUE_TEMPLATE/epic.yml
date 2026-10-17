@@ -56,7 +56,7 @@ body:
       label: Sub-tasks по репозиториям
       description: |
         Чеклист задач по репо. Каждый превращается в отдельный issue
-        после того, как закрыты соответствующие needs:* (ADR/design/contract).
+        когда появится соответствующий артефакт (ADR/design/contract). needs:* ничего не блокируют.
     validations:
       required: true
 
@@ -66,7 +66,7 @@ body:
       label: ADR
       description: |
         Ссылка на документ в `minchat-hq/docs/architecture/` или `research/`.
-        Блокирует старт implementation tasks до публикации.
+        ADR не блокирует старт implementation tasks.
 
   - type: input
     id: contract
@@ -74,7 +74,7 @@ body:
       label: Контракт
       description: |
         Ссылка на контракт в `minchat-hq/docs/contracts/`.
-        Закрывает `needs:contract` на child-issues после `contract:approved`.
+        Ссылается на контракт в acceptance criteria зависимых child-issues.
 
   - type: input
     id: design
@@ -82,7 +82,7 @@ body:
       label: Дизайн (если затрагивает UX)
       description: |
         HTML-мок в `minchat-hq/docs/designs/<feature>.html` по ритуальной схеме.
-        Закрывает `needs:design` после `design:approved`.
+        Информационная метка: needs:design работу не блокирует.
 
   - type: textarea
     id: verification

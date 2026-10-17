@@ -1,0 +1,43 @@
+name: Lifecycle Rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/issue-lifecycle-bot.yml'
+      - '.github/ISSUE_TEMPLATE/**'
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/issue-lifecycle-bot.yml'
+      - '.github/ISSUE_TEMPLATE/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lifecycle-rules-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  shell-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Readiness rule behavior
+        run: bash scripts/test-readiness.sh
+
+      - name: Issue reference extraction
+        run: bash scripts/test-lifecycle-extraction.sh
+
+      - name: Workflow and template YAML parse
+        run: |
+          set -euo pipefail
+          for f in .github/workflows/*.yml; do
+            python3 -c "import sys, yaml; yaml.safe_load(open(sys.argv[1]))" "$f"
+            echo "parsed $f"
+          done

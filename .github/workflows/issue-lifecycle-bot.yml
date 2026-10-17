@@ -2,7 +2,7 @@ name: Issue Lifecycle Bot
 
 on:
   issues:
-    types: [opened]
+    types: [opened, labeled]
   schedule:
     - cron: '17 5 * * 1'
   workflow_dispatch:
@@ -334,11 +334,74 @@ jobs:
   #
   # Правила:
   #   - бот назначает только свои метки: inbox, in-review, in-develop,
-  #     in-release, released. pickable и backlog — решение человека.
+  #     in-release, released.
+  #   - status:pickable ставит человек или Product Owner, и джоб readiness-gate
+  #     проверяет, что она обоснована. Решение о готовности не заменяет бота,
+  #     но и не остаётся декларацией: правило теперь исполняется.
   #   - закрытые issue теряют все status:* кроме status:released.
   #   - approval-метки, type/area/priority/needs/coordination не трогаются.
   #   - прогон идемпотентен: чистое состояние не порождает изменений.
   # ---------------------------------------------------------------
+  # ---------------------------------------------------------------
+  # Readiness-gate: проверяет, что status:pickable выставлена обоснованно.
+  #
+  # До 2026-10-17 правило готовности существовало только прозой («7 условий»,
+  # одно из которых — что approval-метки закрыты человеком). Ни один джоб его
+  # не выполнял: бот умел только ставить status:inbox. Значит, убрать гейт было
+  # нечего — его надо было реализовать, иначе «не блокирует» осталось бы обещанием.
+  #
+  # Правило (minchat-hq/docs/process/feature-pipeline/rules.md):
+  #   описание + acceptance criteria + type:* + area:* + priority:* + не blocked.
+  # Ни одного условия про человека. needs:* и *:approved НЕ участвуют.
+  #
+  # Готово   -> бот молчит: комментарий «одобрено» на каждую задачу только шумит.
+  # Не готово-> снимает status:pickable и один раз объясняет, чего не хватает.
+  # ---------------------------------------------------------------
+  readiness-gate:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'status:pickable'
+    runs-on: ${{ vars.MINCHAT_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    steps:
+      - name: Check issue readiness
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          . "$GITHUB_WORKSPACE/scripts/lib/readiness.sh"
+
+          body=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json body --jq '.body' 2>/dev/null || echo "")
+          labels=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name' 2>/dev/null | tr '\n' ' ' || echo "")
+          title=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json title --jq '.title' 2>/dev/null || echo "")
+
+          readiness_evaluate "$body" "$labels" "$title"
+
+          if [ "$READINESS_STATUS" = "ready" ]; then
+            echo "Issue #$ISSUE_NUMBER is ready — status:pickable оставлена, комментарий не нужен."
+            exit 0
+          fi
+
+          echo "Issue #$ISSUE_NUMBER не готова:"
+          printf '%s\n' "$READINESS_REASONS"
+
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --remove-label "status:pickable" >/dev/null 2>&1 \
+            || echo "  (no edit access to labels, skipping removal)"
+
+          readiness_comment "$ISSUE_NUMBER" "$READINESS_REASONS" > "$RUNNER_TEMP/readiness-comment.md"
+
+          # Не комментировать повторно: если метку уже снимали, второй раз это шум.
+          already=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json comments --jq \
+            '[.comments[].body] | map(select(test("Не могу оставить .status:pickable"))) | length' 2>/dev/null || echo 0)
+          if [ "${already:-0}" -gt 0 ]; then
+            echo "Комментарий уже был — не дублируем."
+            exit 0
+          fi
+
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body-file "$RUNNER_TEMP/readiness-comment.md" >/dev/null 2>&1 \
+            || echo "  (no comment access, skipping)"
+
   label-reconciler:
     if: >-
       github.event_name == 'workflow_call' ||
