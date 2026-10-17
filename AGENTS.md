@@ -12,9 +12,17 @@
   Read it in full before adding a step to the process or before changing branch,
   release, or gate rules.
 - [`minchat-hq/docs/process/feature-pipeline/README.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md)
-  is the canonical feature-pipeline: status slots, gates (`needs:*`), approval
-  flow, agent self-check. Read it before claiming an issue or starting work.
-  Issue is "ready" only when it has `status:pickable` and no open `needs:*` gates.
+  is the canonical feature-pipeline: status slots, the readiness rule, and the
+  agent self-check. Read it before claiming an issue or starting work.
+  An issue is ready when it carries `status:pickable` and no `coordination:blocked`.
+  Readiness is **substantive** — description, acceptance criteria, `type:` /
+  `area:` / `priority:` — and is enforced by the `readiness-gate` job against
+  `scripts/lib/readiness.sh`. `needs:*` and `*:approved` are navigation labels and
+  do not block work.
+- [`minchat-hq/docs/process/product-owner/README.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/product-owner/README.md)
+  is the standing mandate under which a Product Owner agent selects and directs
+  work without per-feature sign-off, and the limits that mandate never covers.
+  Read it before making a product decision here.
 
 ## Rules
 
@@ -26,4 +34,11 @@
 
 ## Verification
 
-- Before merge, verify that new documentation links resolve and do not contradict the canonical sources in the owning repositories.
+- Before merge, verify that new documentation links resolve and do not contradict
+  the canonical sources in the owning repositories.
+- Before merge, run the shell tests that cover anything you changed:
+  `bash scripts/test-lifecycle-extraction.sh` and `bash scripts/test-readiness.sh`.
+  A change to a lifecycle rule without its behavioral test is an unfinished change.
+- The readiness rule is deliberately free of `jq` and of any clock, so it runs in
+  the workflow and in the test on a bare runner. Keep it that way; introducing a
+  dependency there makes the rule testable only where that dependency exists.
