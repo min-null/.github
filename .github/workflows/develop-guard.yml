@@ -22,12 +22,12 @@ name: Develop Guard
 #
 # Ключ — собственный GITHUB_TOKEN этого репозитория, секретов не требуется.
 
+# Manual-only since minchat-hq#193: the org GitHub Actions quota is exhausted,
+# so every automatic run failed in ~2s without executing a single step.
+# workflow_dispatch (including its inputs) and workflow_call are unchanged, so
+# manual runs and reusable-workflow callers keep working. Restore the removed
+# triggers with `git revert` once the quota problem is solved.
 on:
-  push:
-    branches: [main]
-  delete:
-  schedule:
-    - cron: '17 4 * * 1'
   workflow_dispatch:
 
 permissions:
