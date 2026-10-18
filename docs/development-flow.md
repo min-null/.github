@@ -30,8 +30,14 @@
   повторные webhook deliveries не создают повторный выпуск.
 - Когда пара готова, Jenkins проверяет происхождение тегов и выполняет полный
   backend/client/security/Ops CI, затем собирает digest-pinned образы и
-  поручает Ops deploy, smoke и BOM. Красные проверки останавливают выпуск до
-  публикации и деплоя. Цель остаётся текущим dev-сайтом; production отдельно.
+  поручает Ops deploy, smoke и BOM в текущий dev-контур. Вручную заданный
+  `SKIP_TESTS=true` пропускает эти проверки, но не блокирует deploy; Jenkins
+  и панель явно помечают такой запуск «проверки пропущены». Его SUCCESS не
+  подтверждает качество или безопасность.
+- Jenkins не выпускает в production. Изолированная production-среда и её
+  координатор ещё не готовы; еженедельный production-релиз пока не настроен.
+  До отдельного acceptance нельзя считать основной сайт production-целью или
+  использовать старый маршрут как замену.
 - Вручную повторить неудачный выпуск можно только с существующей парой
   release-тегов; пустой `RELEASE_TAG` и выпуск из develop запрещены.
 - Эта выбранная пользователем схема заменяет требования quality/Jenkins gates
@@ -41,12 +47,12 @@
   сайта. Они имеют статус `not_run` и не входят в текущий frontend PR gate
   или dev-release. При последующем включении Flutter/Dart разрешены только
   на CI VPS, локальный запуск на компьютере пользователя запрещён.
-- Производственный выпуск сохраняет пару одинаковых `release-*` тегов на
-  merge commits release PR в main, проверку release branch policy, полный CI после тега и smoke.
-  Пользователь выбрал текущий сайт в dev как цель миграции; production-переезд
-  выполняется отдельной задачей. После dev cutover прежний Actions production
-  coordinator тоже отключается. Production не объявляется перенесённым и
-  требует отдельного runtime, gateway и проверенного координатора.
+- Целевой еженедельный production-выпуск будет использовать парные
+  `release-<version>` теги из `main`, полный обязательный CI, отдельный
+  production runtime, smoke, BOM и rollback. Сейчас этот маршрут не готов и
+  не включён: сначала требуется изолировать production от dev и проверить
+  runtime, credentials, gateway и единственный координатор. Никаких расписаний
+  или Jenkins production jobs пока нет.
 - Webhook worker заменяет branch lint, develop guard и issue lifecycle для
   перенесённых репозиториев. Он имеет права только на выбранные репозитории.
   Локальная issue закрывается по явной closing reference после merge в main;
@@ -95,9 +101,10 @@ PR и до любого merge. Остальной документ нужен д
    release PR, из коммита в `main`. Один и тот же тег ставится в **каждом**
    release-producing репозитории.
 
-5. **Тег — единственный триггер продакшена.** Push в `develop`, merge feature PR
-   и ручная сборка образа не являются деплоем. Dev-выпуск запускается явно и
-   деплоит только dev.
+5. **Тег запускает только настроенный релизный маршрут.** Сейчас пара тегов
+   запускает Jenkins выпуск в dev. Push в `develop`, merge feature PR и ручная
+   сборка образа не запускают production deploy. Отдельный еженедельный
+   production-маршрут пока не включён.
 
 6. **Красный gate — не причина его обходить.** Сначала исправь направление PR или
    вернись в integration flow. Зелёный `Release Gate` — обязательная ручная
@@ -135,12 +142,15 @@ PR и до любого merge. Остальной документ нужен д
   -> merge в develop
   -> release PR develop -> main  (метка release, Release Gate)
   -> merge в main
-  -> тег release-<version> в каждом release-producing репо
-  -> dispatch в minchat-ops
+  -> тег release-<version> в backend и web main
+  -> Jenkins: проверка пары + полный CI
   -> сборка digest-pinned пары образов
-  -> deploy в prod + post-deploy smoke
-  -> запись release BOM
+  -> deploy текущего настроенного Jenkins-контура (dev)
+  -> post-deploy smoke + release BOM
   -> (при сбое) rollback по предыдущему BOM
+
+Production — целевой еженедельный маршрут после отдельной готовности и
+приёмки runtime. Сейчас production deploy не настроен.
 ```
 
 ### 1. Идея и задача
@@ -206,22 +216,19 @@ gh pr create --base main --head develop --label release \
 - `min-null/minchat-backend`
 - `min-null/minchat-frontend-web`
 
-Backend tag workflow — **canonical release coordinator**: он проверяет tag policy
-и то, что указанные коммиты лежат в `main`, затем шлёт `repository_dispatch`
-`release` в `minchat-ops`. Ops принимает только совпадающую пару `release-*`
-refs; отсутствие тега в одном из репозиториев даёт явную ошибку checkout, а не
-молчаливый откат на `main`.
+Для текущего Jenkins маршрута webhook dispatcher ждёт одинаковые
+`release-<version>` теги backend и web, проверяет их merge commits в `main`
+и передаёт пару в `minchat-release/dev-release`. Jenkins выполняет CI и
+деплоит только в dev. При ручном `SKIP_TESTS=true` проверки пропускаются и
+это состояние остаётся видимым в истории.
 
-Если hosted Actions недоступен, оператор может запустить тот же выпуск через
-`minchat-ops/scripts/release.sh prod release-<version>` на VPS. Это ручной
-fallback координатора: он не создаёт теги, проверяет одинаковые существующие
-теги и принадлежность обоих commits `main`, а также зелёные проверки merged
-release PR, на merge commit которого поставлен тег. Ошибка API, отсутствующие,
-красные или незавершённые проверки останавливают выпуск до сборки. Gates можно
-выполнить на self-hosted runner; исчерпание квоты не считается их прохождением.
-Не запускайте одновременно ручной и Actions выпуск одного окружения.
-Команда dev допускает явно выбранный оператором `main` (по умолчанию) или
-`develop`; такой запуск не создаёт production release.
+Старые Actions/Ops production сценарии не являются согласованным weekly
+координатором для выбранной изолированной production-среды. Не запускать
+`minchat-ops/scripts/release.sh prod release-<version>` для текущего сайта:
+до production acceptance нет подтверждённого production runtime и целевого
+gateway. Пара release-тегов сама по себе не означает production deploy.
+Команды dev и ручного обслуживания описаны в Jenkins/Ops runbook; их статус
+нужно сверять перед каждым запуском.
 
 ### 6. Деплой и откат
 
