@@ -49,7 +49,8 @@
   требует отдельного runtime, gateway и проверенного координатора.
 - Webhook worker заменяет branch lint, develop guard и issue lifecycle для
   перенесённых репозиториев. Он имеет права только на выбранные репозитории.
-  Локальная issue закрывается по явной closing reference после merge в main;
+  HQ task issue закрывается по явной closing reference на `min-null/minchat-hq#N`
+  после merge в main;
   cross-repo HQ parent закрывает integration owner. Статусные метки и approval
   labels бот не выдумывает: `readiness-gate` только проверяет обоснованность
   `status:pickable` и снимает её, если задача не готова.
@@ -128,7 +129,7 @@ PR и до любого merge. Остальной документ нужен д
 ```text
 идея
   -> Project item (organization Project `MinChat`)
-  -> issue (по умолчанию в minchat-hq)
+  -> issue в minchat-hq, если нужны история, обсуждение или координация
   -> product gate (для новой функциональности)
   -> ветка feature/fix от develop
   -> PR в develop  +  quality gate репозитория
@@ -146,8 +147,20 @@ PR и до любого merge. Остальной документ нужен д
 ### 1. Идея и задача
 
 Новая идея сначала становится item в organization Project `MinChat`. Если нужны
-обсуждение, история или ссылки — issue создаётся в `minchat-hq`. Repo-local
-issue допустим только по исключениям из ownership policy.
+обсуждение, история или ссылки — issue создаётся в `min-null/minchat-hq`.
+
+**Все MinChat task issues живут только в `min-null/minchat-hq`.** Это включает
+баги одного code/ops репозитория, технические задачи и child issues. Code/ops
+репозитории хранят код, PR и runbook'и, но не task backlogs. Исключение — только
+прямое указание Линара создать issue в другом репозитории.
+
+Перед созданием issue агент обязан найти возможную существующую задачу в HQ и
+проверить, что `repository_full_name` назначения — ровно `min-null/minchat-hq`.
+Текущий checkout или репозиторий реализации не меняют назначение. Если у агента
+нет доступа к HQ, он сообщает об этом и не создаёт issue в code/ops репозитории.
+Если task issue уже ошибочно появилась вне HQ, агент находит или создаёт её HQ
+соответствие, добавляет ссылки в обе стороны и закрывает repo-local issue как
+duplicate.
 
 Cross-repo инициатива — один parent issue в `minchat-hq` с чеклистом PR и
 явно указанным integration/release path для каждого затронутого репозитория.

@@ -28,6 +28,7 @@
 
 - The process is single and shared across the organization's repositories. A repository adds data, commands, and its own runbooks. It does not invent process rules.
 - A new process step is described in `docs/development-flow.md` first, then referenced from the repositories. Do not add process to repositories.
+- Create every MinChat task issue only in `min-null/minchat-hq`, including single-repository bugs and child issues. Before creating one, search HQ for an existing task and verify that the destination `repository_full_name` is exactly `min-null/minchat-hq`. Never create task issues in a code/ops repository unless Linar explicitly instructs otherwise. If one was opened there by mistake, link its HQ counterpart in both directions and close the repo-local issue as a duplicate.
 - This document links to source-of-truth in other repositories and does not copy their content.
 - Team-facing documentation is kept in Russian; commands, identifiers, paths, and code snippets stay as is.
 - Do not commit `.env`, credentials, private keys, production dumps, or local runtime state.
