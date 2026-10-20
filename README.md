@@ -6,7 +6,7 @@
 ## Процесс
 
 - [Единый флоу разработки и релиза](docs/development-flow.md) — канон для всех
-  репозиториев: задача, product gate, ветки, PR, `develop → main`, release tag,
+  репозиториев: scope задачи, ветки, PR, `develop → main`, release tag,
   deploy, rollback.
 
 Начните с него. Репозитории организации не описывают процесс заново — они

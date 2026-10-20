@@ -135,9 +135,8 @@ PR и до любого merge. Остальной документ нужен д
 
 ```text
 идея
-  -> Project item (organization Project `MinChat`)
-  -> issue в minchat-hq, если нужны история, обсуждение или координация
-  -> product gate (для новой функциональности)
+  -> короткая issue в minchat-hq (обязательный общий трекер; одной строки достаточно)
+  -> результат + границы; детали уточняются по мере работы
   -> ветка feature/fix от develop
   -> PR в develop  +  quality gate репозитория
   -> merge в develop
@@ -154,23 +153,13 @@ Production — целевой еженедельный маршрут после
 приёмки runtime. Сейчас production deploy не настроен.
 ```
 
-### 1. Идея и задача
+### 1. Запрос и scope
 
-Новая идея сначала становится item в organization Project `MinChat`. Если нужны
-обсуждение, история или ссылки — issue создаётся в `min-null/minchat-hq`.
-
-**Все MinChat task issues живут только в `min-null/minchat-hq`.** Это включает
-баги одного code/ops репозитория, технические задачи и child issues. Code/ops
-репозитории хранят код, PR и runbook'и, но не task backlogs. Исключение — только
-прямое указание Линара создать issue в другом репозитории.
-
-Перед созданием issue агент обязан найти возможную существующую задачу в HQ и
-проверить, что `repository_full_name` назначения — ровно `min-null/minchat-hq`.
-Текущий checkout или репозиторий реализации не меняют назначение. Если у агента
-нет доступа к HQ, он сообщает об этом и не создаёт issue в code/ops репозитории.
-Если task issue уже ошибочно появилась вне HQ, агент находит или создаёт её HQ
-соответствие, добавляет ссылки в обе стороны и закрывает repo-local issue как
-duplicate.
+Каждая задача получает issue в `minchat-hq`; сначала проверь, нет ли дубля.
+Для небольшой правки хватит заголовка и одной строки с ожидаемым результатом.
+Для крупной или cross-repo работы коротко добавь границы, зависимости и способ
+проверки. Organization Project можно использовать как обзор очереди, но он не
+нужен для создания или начала задачи.
 
 Cross-repo инициатива — один parent issue в `minchat-hq` с чеклистом PR и
 явно указанным integration/release path для каждого затронутого репозитория.
@@ -178,13 +167,16 @@ Cross-repo инициатива — один parent issue в `minchat-hq` с ч�
 Канон: [minchat-hq/docs/ownership.md](https://github.com/min-null/minchat-hq/blob/main/docs/ownership.md),
 [minchat-hq/docs/project-management.md](https://github.com/min-null/minchat-hq/blob/main/docs/project-management.md).
 
-### 2. Product gate
+### 2. Scope и решения
 
-Новая функциональность проходит продуктовый gate до реализации: пользователь,
-мотивация, usage, основной и негативные пути, UX и критерий успеха. Наличие
-готового backend endpoint не является причиной добавить поверхность в продукт.
+Обычные продуктовые и технические детали решает исполнитель в рамках запроса.
+Не добавляй большие соседние возможности, платформы или настройки без связи с
+целью. Если выяснилось, что меняется цель, приватность, безопасность,
+совместимость или другой труднообратимый выбор, опиши последствия и спроси
+владельца только об этом решении. Дизайн, контракты и ADR создаются по
+необходимости и не являются обязательными gate перед стартом.
 
-Канон: [minchat-hq/docs/product-development-principles.md](https://github.com/min-null/minchat-hq/blob/main/docs/product-development-principles.md).
+Короткий процесс: [minchat-hq/docs/process/feature-pipeline/README.md](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md).
 
 ### 3. Ветка и PR в develop
 
@@ -202,9 +194,10 @@ git submodule update --init --recursive
 PR в `develop` должен проходить quality gate своего репозитория. Направление
 веток проверяется автоматически.
 
-Cross-repo фича: сначала фиксируется контракт в репозитории-владельце, затем
-клиентская реализация в отдельной ветке и отдельной задаче. Один commit или
-worktree не покрывает несколько репозиториев.
+Cross-repo фича: обновляй shared contract там, где меняется API или поведение.
+Для каждого затронутого репозитория нужен свой PR и checkout, но один HQ issue
+может связывать их все. Порядок работы определяется фактическими зависимостями;
+не создавай child issues, если достаточно общего issue с коротким чеклистом.
 
 ### 4. Release PR в main
 
@@ -398,7 +391,7 @@ issues-103-add-workspace-tabs
 | Процесс: ветки, PR, release, deploy | org | этот документ |
 | Карта репозиториев | `minchat-hq` | [docs/repositories.md](https://github.com/min-null/minchat-hq/blob/main/docs/repositories.md) |
 | Куда заводить задачи, labels | `minchat-hq` | [docs/ownership.md](https://github.com/min-null/minchat-hq/blob/main/docs/ownership.md) |
-| Product gate | `minchat-hq` | [docs/product-development-principles.md](https://github.com/min-null/minchat-hq/blob/main/docs/product-development-principles.md) |
+| Product guidance | `minchat-hq` | [docs/product-development-principles.md](https://github.com/min-null/minchat-hq/blob/main/docs/product-development-principles.md) |
 | Релизный план | `minchat-hq` | [roadmap/](https://github.com/min-null/minchat-hq/tree/main/roadmap) |
 | Release map и границы deploy | `minchat-hq` | [docs/release-map.md](https://github.com/min-null/minchat-hq/blob/main/docs/release-map.md) |
 | Branch/release flow backend | `minchat-backend` | [docs/release-flow.md](https://github.com/min-null/minchat-backend/blob/main/docs/release-flow.md) |

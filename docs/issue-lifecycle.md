@@ -2,6 +2,8 @@
 
 Issue, привязанный к PR, проходит через состояния, которые определяются активностью вокруг PR. Состояния представлены метками на issue, переходы выполняет workflow `.github/.github/workflows/issue-lifecycle-bot.yml`.
 
+Это только отметки доставки PR. Workflow не требует `status:pickable`, `needs:*`, product brief или дизайн-approval перед началом работы. Для MinChat задач достаточно понятного результата и разумных границ; см. [короткий процесс](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md).
+
 ## Состояния
 
 ### Слоты готовности (feature-pipeline)
