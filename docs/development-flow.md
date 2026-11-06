@@ -8,33 +8,43 @@
 любого репозитория — **прав этот документ**. Расхождение нужно исправить, а не
 обойти.
 
-## Переход MinChat на Jenkins
+## Переход MinChat на Drone
 
 Для `minchat-ci`, `minchat-backend`, `minchat-frontend`, `minchat-frontend-web`
-и `minchat-ops` CI/CD переносится на VPS Jenkins в рамках
-[minchat-hq#142](https://github.com/min-null/minchat-hq/issues/142).
-После проверенного cutover действуют правила ниже; упоминания Actions в
-остальном документе описывают прежнюю реализацию и остальные репозитории.
-Веточная модель, release labels, согласованные теги и ручной контроль сохраняются.
+и `minchat-ops` CI/CD переносится с Jenkins на Drone на CI VPS в рамках
+[minchat-hq#455](https://github.com/min-null/minchat-hq/issues/455).
+Правила ниже начинают действовать после проверенного cutover. До него
+исполнительным контуром остаётся Jenkins; не включать параллельные
+релизные dispatchers. Веточная модель, release labels и ручной контроль
+сохраняются.
 
 - GitHub отправляет `push`, `pull_request`, `issues`, `delete` в HTTPS webhook
   worker. Worker проверяет HMAC и сохраняет события. Обычные push, commit,
-  merge и PR не запускают Jenkins quality/security checks или deploy.
+  merge и PR не запускают release checks или deploy.
 - В PR автоматически проверяется только `minchat/branch-policy`: направление
-  веток, имя feature-ветки и release label. Jenkins PR gate больше не требуется
-  перед merge в develop или main. Код принимается до CI-проверки; ошибки
+  веток, имя feature-ветки и release label. Release CI gate не требуется
+  перед merge в develop или main. Код принимается до release-проверки; ошибки
   обнаруживаются при выпуске по тегу.
-- Единственный обычный запуск CI/CD — пара одинаковых `release-<version>` тегов
-  в `minchat-backend` и `minchat-frontend-web`. Теги указывают на merge commits
-  release PR `develop -> main` с меткой `release`. Первый тег ждёт второй;
-  повторные webhook deliveries не создают повторный выпуск. Сначала создаётся
-  проверенный кандидат без изменения сайта.
-- Когда пара готова, Jenkins проверяет происхождение тегов и выполняет полный
-  backend/client/security/Ops CI и публикует digest-pinned образы. SUCCESS
-  кандидата — ручная точка приёмки. Затем оператор запускает только deploy
-  сохранённой пары; повторные тесты и сборка при продвижении не нужны.
-  Пропуска проверок через `SKIP_TESTS` в штатном пути нет. GitHub Actions и
-  их биллинг не являются зависимостью выпуска: качество подтверждает Jenkins.
+- Отдельный тег `release-<version>` в `minchat-backend` или
+  `minchat-frontend-web` запускает проверки и подготовку кандидата только этого
+  компонента. Тег указывает на merge commit принятого release PR
+  `develop -> main` с меткой `release`; совпадение версий и второй тег не нужны.
+  Повторные доставки события не создают повторную сборку, а перемещение уже
+  принятого тега отклоняется.
+- Кандидат содержит тег, SHA, digest образа, provenance и результаты проверок
+  компонента. Подготовка не меняет сайт и не требует актуального тега второго
+  компонента. Drone управляет запуском, очередью, логами и результатом; команды
+  и проверки принадлежат приложениям и Ops.
+- Выкладка вручную выбирает backend-кандидат, web-кандидат или оба. Невыбранный
+  компонент сохраняется по точному digest текущего BOM. Preview фиксирует пару
+  digest, окружение и BOM; применение не пересобирает образы. Перед выкладкой
+  Ops проверяет REST-контракт выбранной пары OpenAPI. Успех переиспользуется
+  только для тех же digest и версии проверки. Явный пропуск требует причины и
+  подтверждения точной пары и остаётся `skipped`, в том числе после ошибки.
+- REST-проверка не доказывает совместимость realtime, звонков и всех сценариев.
+  Пропуск не отключает собственные проверки компонентов, provenance, backup,
+  миграции и smoke. Под блокировкой Ops перед применением preview повторно
+  сверяется BOM; при его изменении нужен новый preview и результат проверки.
 - Штатная цель текущего web/backend выпуска — основной `min-chat.online` на
   `82.147.67.254`, как в принятом владельцем выпуске 1.0.37 (HQ #281).
   Его техническое имя Ops пока `dev`; это не отдельный `dev.min-chat.online`.
@@ -49,7 +59,7 @@
   проверяют пользовательскую сессию, realtime и фактические версии; результаты
   фиксируют в HQ issue. Команды и срок хранения кандидата — в
   [verified-release](https://github.com/min-null/minchat-ci/blob/develop/docs/verified-release.md).
-- Эта выбранная пользователем схема заменяет требования quality/Jenkins gates
+- Эта выбранная пользователем схема заменяет требования release CI gates
   до merge для пяти перечисленных репозиториев. Общие указания о PR quality
   gates ниже продолжают действовать для остальных репозиториев организации.
 - Flutter tests и APK отложены пользователем для завершения миграции текущего
@@ -61,7 +71,7 @@
   production runtime, smoke, BOM и rollback. Сейчас этот отдельный маршрут не готов и
   не включён: сначала требуется изолировать production от dev и проверить
   runtime, credentials, gateway и единственный координатор. Никаких расписаний
-  или Jenkins production jobs пока нет.
+  или автоматических production jobs пока нет.
 - Webhook worker заменяет branch lint, develop guard и issue lifecycle для
   перенесённых репозиториев. Он имеет права только на выбранные репозитории.
   HQ task issue закрывается по явной closing reference на `min-null/minchat-hq#N`
@@ -78,7 +88,7 @@
 
 Этот порядок закреплён владельцем после успешного выпуска 1.0.37 в HQ #281.
 Указания ниже про обязательный GitHub `Release Gate` для этих пяти репозиториев
-читаются с этим исключением: обязательны branch policy и полный Jenkins CI
+читаются с этим исключением: обязательны branch policy и полный Drone CI
 кандидата; отсутствующий hosted запуск не подменяют фиктивным зелёным check.
 
 ## Отдельная develop-среда на CI VPS
@@ -113,12 +123,13 @@ PR и до любого merge. Остальной документ нужен д
    `main → develop`.
 
 4. **Теги — только из `main`.** Тег `release-<version>` создаётся после merge
-   release PR, из коммита в `main`. Один и тот же тег ставится в **каждом**
-   release-producing репозитории.
+   release PR из коммита в `main`; backend и web ставятся независимо и могут
+   иметь разные версии.
 
-5. **Тег запускает только настроенный релизный маршрут.** Сейчас пара тегов
-   запускает Jenkins выпуск в dev. Push в `develop`, merge feature PR и ручная
-   сборка образа не запускают production deploy. Отдельный еженедельный
+5. **Тег запускает только настроенный релизный маршрут.** Каждый тег запускает
+   Drone-кандидат своего компонента. Ручной Ops preview выбирает компоненты и
+   целевое окружение. Push в `develop`, merge feature PR и ручная сборка образа
+   сами по себе не запускают deploy. Отдельный еженедельный
    production-маршрут пока не включён.
 
 6. **Красный gate — не причина его обходить.** Сначала исправь направление PR или
@@ -156,10 +167,10 @@ PR и до любого merge. Остальной документ нужен д
   -> merge в develop
   -> release PR develop -> main  (метка release, Release Gate)
   -> merge в main
-  -> тег release-<version> в backend и web main
-  -> Jenkins: проверка пары + полный CI
-  -> сборка digest-pinned пары образов
-  -> deploy текущего настроенного Jenkins-контура (dev)
+  -> независимые release-теги backend и web из main
+  -> Drone: проверки компонентов + digest-pinned кандидаты
+  -> Ops: preview выбранной пары + REST compatibility check
+  -> ручное применение preview без пересборки
   -> post-deploy smoke + release BOM
   -> (при сбое) rollback по предыдущему BOM
 
@@ -230,24 +241,23 @@ gh pr create --base main --head develop --label release \
 
 ### 5. Теги и dispatch
 
-Один и тот же тег `release-<version>` ставится в оба release-producing
-репозитория:
+Теги `release-<version>` ставятся независимо в release-producing репозитории:
 
 - `min-null/minchat-backend`
 - `min-null/minchat-frontend-web`
 
-Для текущего Jenkins маршрута webhook dispatcher ждёт одинаковые
-`release-<version>` теги backend и web, проверяет их merge commits в `main`
-и передаёт пару в `minchat-release/dev-release`. Jenkins выполняет CI и
-деплоит только в dev. При ручном `SKIP_TESTS=true` проверки пропускаются и
-это состояние остаётся видимым в истории.
+После cutover webhook worker сохраняет каждый backend/web тег независимо.
+Component dispatcher проверяет происхождение и передаёт точные repository, tag
+и SHA в Drone. Неоднозначный ответ API автоматически не отправляется повторно:
+оператор сначала сверяет его с Drone. Подготовка кандидата не выкладывает сайт;
+Ops preview и его применение выполняются отдельными ручными командами.
 
 Старые Actions/Ops production сценарии не являются согласованным weekly
 координатором для выбранной изолированной production-среды. Не запускать
 `minchat-ops/scripts/release.sh prod release-<version>` для текущего сайта:
 до production acceptance нет подтверждённого production runtime и целевого
 gateway. Пара release-тегов сама по себе не означает production deploy.
-Команды dev и ручного обслуживания описаны в Jenkins/Ops runbook; их статус
+Команды dev и ручного обслуживания описаны в CI/Ops runbook; их статус
 нужно сверять перед каждым запуском.
 
 ### 6. Деплой и откат
