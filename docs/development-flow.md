@@ -181,6 +181,12 @@ Production — целевой еженедельный маршрут после
 
 ### 1. Запрос и scope
 
+Для задач разработки MinChat в Codex используй [MIN Development Kit](https://github.com/min-null/development-kit/blob/main/docs/usage.md) (`$mindev`).
+Поручение выполнить задачу включает открытие PR и merge в `develop`, если
+полномочия и действующие проверки это позволяют. Запрос на план, исследование,
+ревью или подготовку PR заканчивается запрошенным результатом. Релиз и выкат
+выполняются по отдельному поручению или действующему мандату.
+
 Каждая задача получает issue в `minchat-hq`; сначала проверь, нет ли дубля.
 Для небольшой правки хватит заголовка и одной строки с ожидаемым результатом.
 Для крупной или cross-repo работы коротко добавь границы, зависимости и способ
@@ -217,8 +223,10 @@ git submodule update --init --recursive
 Каждый PR живёт в собственном worktree. Одна ветка = одна задача; объединять
 две фичи в одну ветку запрещено.
 
-PR в `develop` должен проходить quality gate своего репозитория. Направление
-веток проверяется автоматически.
+Перед merge в `develop` проверь направление PR, полномочия и обязательные
+проверки для последнего SHA PR. Для перенесённых репозиториев действует
+порядок из раздела о Drone. После merge проверь состояние PR в GitHub и
+наличие merge-коммита в `develop`.
 
 Cross-repo фича: обновляй shared contract там, где меняется API или поведение.
 Для каждого затронутого репозитория нужен свой PR и checkout, но один HQ issue
@@ -387,8 +395,7 @@ issues-103-add-workspace-tabs
 - Команды `git worktree add`, submodule setup и submodule-границы — в
   [`development-kit/docs/repository-workflow.md`](https://github.com/min-null/development-kit/blob/main/docs/repository-workflow.md),
   раздел Worktrees.
-- Сквозная фича с ролями и evidence — skill `feature-orchestration`
-  (MIN Development Kit).
+- Поручения, координация и проверка результата в Codex — [MinDev](https://github.com/min-null/development-kit/blob/main/docs/usage.md).
 - При конфликте приоритетов между параллельными worktree — решение integration
   owner-а, зафиксированное в parent issue в `minchat-hq`.
 
@@ -422,7 +429,7 @@ issues-103-add-workspace-tabs
 | Архитектура и runbook'и backend | `minchat-backend` | [docs/README.md](https://github.com/min-null/minchat-backend/blob/main/docs/README.md) |
 | Контракты REST/WS/UI/behavioral | `minchat-backend` | [shared/README.md](https://github.com/min-null/minchat-backend/blob/main/shared/README.md) |
 | Submodules, worktrees, границы клиентов | `minchat-frontend` | [AGENTS.md](https://github.com/min-null/minchat-frontend/blob/main/AGENTS.md) |
-| Оркестрация фичи, роли, evidence | `development-kit` | [docs/usage.md](https://github.com/min-null/development-kit/blob/main/docs/usage.md) |
+| Работа с задачей в Codex | `development-kit` | [docs/usage.md](https://github.com/min-null/development-kit/blob/main/docs/usage.md) |
 | Работа с репозиториями в агенте | `development-kit` | [docs/repository-workflow.md](https://github.com/min-null/development-kit/blob/main/docs/repository-workflow.md) |
 | Релизный процесс, BOM, rollback | `minchat-ops` | [docs/release-process.md](https://github.com/min-null/minchat-ops/blob/main/docs/release-process.md) |
 | Окружения, secrets, quality gate | `minchat-ops` | [docs/](https://github.com/min-null/minchat-ops/tree/main/docs) |
@@ -471,7 +478,7 @@ issue со ссылкой в PR; не выдавай такую проверку
 ## Проверки перед merge
 
 - Направление PR соответствует разделу «Обязательные правила».
-- Quality gate репозитория зелёный.
+- Пройдены обязательные проверки для актуального SHA по правилам репозитория и действующего CI.
 - Для пяти перенесённых репозиториев release PR требует зелёный
   `minchat/branch-policy`; обязательные component checks выполняются до выдачи
   кандидата и блокируют apply при ошибке.

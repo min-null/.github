@@ -11,14 +11,10 @@
 - `docs/development-flow.md` is the single canonical process document.
   Read it in full before adding a step to the process or before changing branch,
   release, or gate rules.
-- [`minchat-hq/docs/process/feature-pipeline/README.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md)
-  is the canonical feature-pipeline: status slots, the readiness rule, and the
-  agent self-check. Read it before claiming an issue or starting work.
-  An issue is ready when it carries `status:pickable` and no `coordination:blocked`.
-  Readiness is **substantive** — description, acceptance criteria, `type:` /
-  `area:` / `priority:` — and is enforced by the `readiness-gate` job against
-  `scripts/lib/readiness.sh`. `needs:*` and `*:approved` are navigation labels and
-  do not block work.
+- For scope and tracking, read the [HQ feature pipeline](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md).
+  A clear request is enough to start ordinary in-scope work.
+- Use [MIN Development Kit](https://github.com/min-null/development-kit/blob/main/docs/usage.md)
+  (`$mindev`) for MinChat engineering tasks in Codex.
 - [`minchat-hq/docs/process/product-owner/README.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/product-owner/README.md)
   is the standing mandate under which a Product Owner agent selects and directs
   work without per-feature sign-off, and the limits that mandate never covers.
