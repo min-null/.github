@@ -1,0 +1,37 @@
+name: Lifecycle Rules
+
+# Manual-only since minchat-hq#193: the org GitHub Actions quota is exhausted,
+# so every automatic run failed in ~2s without executing a single step.
+# workflow_dispatch (including its inputs) and workflow_call are unchanged, so
+# manual runs and reusable-workflow callers keep working. Restore the removed
+# triggers with `git revert` once the quota problem is solved.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lifecycle-rules-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  shell-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Readiness rule behavior
+        run: bash scripts/test-readiness.sh
+
+      - name: Issue reference extraction
+        run: bash scripts/test-lifecycle-extraction.sh
+
+      - name: Workflow and template YAML parse
+        run: |
+          set -euo pipefail
+          for f in .github/workflows/*.yml; do
+            python3 -c "import sys, yaml; yaml.safe_load(open(sys.argv[1]))" "$f"
+            echo "parsed $f"
+          done

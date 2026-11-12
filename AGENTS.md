@@ -11,19 +11,31 @@
 - `docs/development-flow.md` is the single canonical process document.
   Read it in full before adding a step to the process or before changing branch,
   release, or gate rules.
-- [`minchat-hq/docs/process/feature-pipeline/README.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md)
-  is the canonical feature-pipeline: status slots, gates (`needs:*`), approval
-  flow, agent self-check. Read it before claiming an issue or starting work.
-  Issue is "ready" only when it has `status:pickable` and no open `needs:*` gates.
+- For scope and tracking, read the [HQ feature pipeline](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md).
+  A clear request is enough to start ordinary in-scope work.
+- Use [MIN Development Kit](https://github.com/min-null/development-kit/blob/main/docs/usage.md)
+  (`$mindev`) for MinChat engineering tasks in Codex.
+- [`minchat-hq/docs/process/product-owner/README.md`](https://github.com/min-null/minchat-hq/blob/main/docs/process/product-owner/README.md)
+  is the standing mandate under which a Product Owner agent selects and directs
+  work without per-feature sign-off, and the limits that mandate never covers.
+  Read it before making a product decision here.
 
 ## Rules
 
 - The process is single and shared across the organization's repositories. A repository adds data, commands, and its own runbooks. It does not invent process rules.
 - A new process step is described in `docs/development-flow.md` first, then referenced from the repositories. Do not add process to repositories.
+- Create every MinChat task issue only in `min-null/minchat-hq`, including single-repository bugs and child issues. Before creating one, search HQ for an existing task and verify that the destination `repository_full_name` is exactly `min-null/minchat-hq`. Never create task issues in a code/ops repository unless Linar explicitly instructs otherwise. If one was opened there by mistake, link its HQ counterpart in both directions and close the repo-local issue as a duplicate.
 - This document links to source-of-truth in other repositories and does not copy their content.
 - Team-facing documentation is kept in Russian; commands, identifiers, paths, and code snippets stay as is.
 - Do not commit `.env`, credentials, private keys, production dumps, or local runtime state.
 
 ## Verification
 
-- Before merge, verify that new documentation links resolve and do not contradict the canonical sources in the owning repositories.
+- Before merge, verify that new documentation links resolve and do not contradict
+  the canonical sources in the owning repositories.
+- Before merge, run the shell tests that cover anything you changed:
+  `bash scripts/test-lifecycle-extraction.sh` and `bash scripts/test-readiness.sh`.
+  A change to a lifecycle rule without its behavioral test is an unfinished change.
+- The readiness rule is deliberately free of `jq` and of any clock, so it runs in
+  the workflow and in the test on a bare runner. Keep it that way; introducing a
+  dependency there makes the rule testable only where that dependency exists.

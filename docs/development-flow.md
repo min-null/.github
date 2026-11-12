@@ -8,55 +8,88 @@
 любого репозитория — **прав этот документ**. Расхождение нужно исправить, а не
 обойти.
 
-## Переход MinChat на Jenkins
+## Переход MinChat на Drone
 
 Для `minchat-ci`, `minchat-backend`, `minchat-frontend`, `minchat-frontend-web`
-и `minchat-ops` CI/CD переносится на VPS Jenkins в рамках
-[minchat-hq#142](https://github.com/min-null/minchat-hq/issues/142).
-После проверенного cutover действуют правила ниже; упоминания Actions в
-остальном документе описывают прежнюю реализацию и остальные репозитории.
-Веточная модель, release labels, согласованные теги и ручной контроль сохраняются.
+и `minchat-ops` CI/CD переносится с Jenkins на Drone на CI VPS в рамках
+[minchat-hq#455](https://github.com/min-null/minchat-hq/issues/455).
+Jenkins после cutover отключён и не используется как резервный исполнитель.
+Веточная модель, release labels и ручной контроль сохраняются.
 
 - GitHub отправляет `push`, `pull_request`, `issues`, `delete` в HTTPS webhook
   worker. Worker проверяет HMAC и сохраняет события. Обычные push, commit,
-  merge и PR не запускают Jenkins quality/security checks или deploy.
+  merge и PR не запускают release build или deploy. Push в `develop` только
+  ставит независимый запрос dev updater для отдельного `dev.min-chat.online`.
 - В PR автоматически проверяется только `minchat/branch-policy`: направление
-  веток, имя feature-ветки и release label. Jenkins PR gate больше не требуется
-  перед merge в develop или main. Код принимается до CI-проверки; ошибки
+  веток, имя feature-ветки и release label. Release CI gate не требуется
+  перед merge в develop или main. Код принимается до release-проверки; ошибки
   обнаруживаются при выпуске по тегу.
-- Единственный обычный запуск CI/CD — пара одинаковых `release-<version>` тегов
-  в `minchat-backend` и `minchat-frontend-web`. Теги указывают на merge commits
-  release PR `develop -> main` с меткой `release`. Первый тег ждёт второй;
-  повторные webhook deliveries не создают повторный выпуск.
-- Когда пара готова, Jenkins проверяет происхождение тегов и выполняет полный
-  backend/client/security/Ops CI, затем собирает digest-pinned образы и
-  поручает Ops deploy, smoke и BOM. Красные проверки останавливают выпуск до
-  публикации и деплоя. Цель остаётся текущим dev-сайтом; production отдельно.
-- Вручную повторить неудачный выпуск можно только с существующей парой
-  release-тегов; пустой `RELEASE_TAG` и выпуск из develop запрещены.
-- Эта выбранная пользователем схема заменяет требования quality/Jenkins gates
+- Отдельный тег `release-<version>` в `minchat-backend` или
+  `minchat-frontend-web` запускает проверки и подготовку кандидата только этого
+  компонента. Тег указывает на merge commit принятого release PR
+  `develop -> main` с меткой `release`; совпадение версий и второй тег не нужны.
+  Повторные доставки события не создают повторную сборку, а перемещение уже
+  принятого тега отклоняется.
+- Кандидат содержит тег, SHA, digest образа, provenance и результаты проверок
+  компонента. Неуспешные обязательные проверки блокируют кандидата и выкладку.
+  Подготовка не меняет сайт и не требует актуального тега второго компонента.
+  Drone управляет запуском, очередью, логами и результатом; команды и проверки
+  принадлежат приложениям и Ops.
+- Выкладка вручную выбирает backend-кандидат, web-кандидат или оба. Невыбранный
+  компонент сохраняется по точному digest текущего BOM. Preview фиксирует пару
+  digest, окружение и BOM; применение не пересобирает образы. Перед выкладкой
+  Ops проверяет REST-контракт выбранной пары OpenAPI. Успех переиспользуется
+  только для тех же digest и версии проверки. Явный пропуск требует причины и
+  подтверждения точной пары и остаётся `skipped`, в том числе после ошибки.
+- REST-проверка не доказывает совместимость realtime, звонков и всех сценариев.
+  Пропуск не отключает собственные проверки компонентов, provenance, backup,
+  миграции и smoke. Под блокировкой Ops перед применением preview повторно
+  сверяется BOM; при его изменении нужен новый preview и результат проверки.
+- Ручная цель текущего web/backend выпуска — основной `min-chat.online` на
+  `82.147.67.254`, как в принятом владельцем выпуске 1.0.37 (HQ #281).
+  Его техническое имя Ops пока `dev`; это не отдельный `dev.min-chat.online`.
+  При выпуске сохраняются существующие данные, volumes и топология. Новый
+  параллельный prod stack и расписание production этим не включаются.
+- Перед изменением сайта повторно проверяются опубликованные digest и SHA,
+  сохраняется проверенный дамп БД; затем Ops выполняет миграции, deploy,
+  smoke и BOM. Предыдущая пара сохраняется для отката. Успех build-only не
+  означает deploy, успех одного окружения не означает выпуск обоих.
+- После ошибки deploy повторяют только deploy того же сохранённого кандидата.
+  Ошибка кода требует нового кандидата с полными проверками. После SUCCESS
+  проверяют пользовательскую сессию, realtime и фактические версии; результаты
+  фиксируют в HQ issue. Команды и срок хранения кандидата — в
+  [verified-release](https://github.com/min-null/minchat-ci/blob/develop/docs/verified-release.md).
+- Эта выбранная пользователем схема заменяет требования release CI gates
   до merge для пяти перечисленных репозиториев. Общие указания о PR quality
   gates ниже продолжают действовать для остальных репозиториев организации.
-- Flutter tests и APK отложены пользователем для завершения миграции текущего
-  сайта. Они имеют статус `not_run` и не входят в текущий frontend PR gate
-  или dev-release. При последующем включении Flutter/Dart разрешены только
-  на CI VPS, локальный запуск на компьютере пользователя запрещён.
-- Производственный выпуск сохраняет пару одинаковых `release-*` тегов на
-  merge commits release PR в main, проверку release branch policy, полный CI после тега и smoke.
-  Пользователь выбрал текущий сайт в dev как цель миграции; production-переезд
-  выполняется отдельной задачей. После dev cutover прежний Actions production
-  coordinator тоже отключается. Production не объявляется перенесённым и
-  требует отдельного runtime, gateway и проверенного координатора.
+- Android build сохранён отдельным manual-only Drone pipeline. Push, PR, tags,
+  расписания и web/backend releases его не запускают; подписанная публикация
+  требует отдельного явного выбора. Сквозная Android сборка, подпись и
+  публикация имеют статус `not_run` и не блокируют cutover. Flutter/Dart команды
+  запускаются только на CI VPS, не на компьютере пользователя.
+- Еженедельный production-выпуск будет использовать отдельные
+  `release-<version>` кандидаты из `main`, полный обязательный CI, отдельный
+  production runtime, smoke, BOM и rollback. Сейчас этот отдельный маршрут не готов и
+  не включён: сначала требуется изолировать production от dev и проверить
+  runtime, credentials, gateway и единственный координатор. Никаких расписаний
+  или автоматических production jobs пока нет.
 - Webhook worker заменяет branch lint, develop guard и issue lifecycle для
   перенесённых репозиториев. Он имеет права только на выбранные репозитории.
-  Локальная issue закрывается по явной closing reference после merge в main;
-  cross-repo HQ parent закрывает integration owner. Approval labels бот не ставит.
+  HQ task issue закрывается по явной closing reference на `min-null/minchat-hq#N`
+  после merge в main;
+  cross-repo HQ parent закрывает integration owner. Статусные метки и approval
+  labels бот не выдумывает: `readiness-gate` только проверяет обоснованность
+  `status:pickable` и снимает её, если задача не готова.
 - Weekly reconciliation выполняется на CI VPS по понедельникам 05:17 UTC,
   независимо от default branch GitHub. Сбой виден в health и журнале.
 
 Команды, credentials, recovery и ограничения среды принадлежат
 [minchat-ci runbook](https://github.com/min-null/minchat-ci/blob/develop/docs/setup.md)
 и [Ops runbook](https://github.com/min-null/minchat-ops/blob/develop/docs/release-process.md).
+
+Для перечисленных репозиториев успешный `minchat/branch-policy` подтверждает
+release PR policy. Полный component CI выполняется при подготовке кандидата;
+отсутствующий hosted запуск не подменяют фиктивным зелёным check.
 
 ## Отдельная develop-среда на CI VPS
 
@@ -66,9 +99,10 @@
 без пересборки образов; зависимости/config/migrations обрабатываются явно Ops.
 Web develop выбирается независимо от parent gitlink, фактические SHA сохраняются.
 Это исключение из правила «обычный push ничего не запускает» относится только к
-dev updater: полный release CI и основной сайт по-прежнему запускаются по паре
-согласованных release-тегов. Старое техническое окружение основного сайта не
-переименовывается этой задачей. Dev использует собственные данные и credentials.
+dev updater: полный release CI и основной сайт запускаются независимо по
+component release-тегам и ручному Ops preview. Старое техническое окружение
+основного сайта не переименовывается этой задачей. Dev использует собственные
+данные и credentials.
 Dev reload не гарантирует непрерывность звонка и не заменяет release smoke.
 
 ## Обязательные правила
@@ -90,16 +124,18 @@ PR и до любого merge. Остальной документ нужен д
    `main → develop`.
 
 4. **Теги — только из `main`.** Тег `release-<version>` создаётся после merge
-   release PR, из коммита в `main`. Один и тот же тег ставится в **каждом**
-   release-producing репозитории.
+   release PR из коммита в `main`; backend и web ставятся независимо и могут
+   иметь разные версии.
 
-5. **Тег — единственный триггер продакшена.** Push в `develop`, merge feature PR
-   и ручная сборка образа не являются деплоем. Dev-выпуск запускается явно и
-   деплоит только dev.
+5. **Тег запускает только настроенный релизный маршрут.** Каждый тег запускает
+   Drone-кандидат своего компонента. Ручной Ops preview выбирает компоненты и
+   целевое окружение. Push в `develop`, merge feature PR и ручная сборка образа
+   сами по себе не запускают deploy. Отдельный еженедельный
+   production-маршрут пока не включён.
 
 6. **Красный gate — не причина его обходить.** Сначала исправь направление PR или
-   вернись в integration flow. Зелёный `Release Gate` — обязательная ручная
-   точка контроля, потому что branch protection на текущем тарифе недоступен.
+   вернись в integration flow. Обязательные component checks, provenance,
+   compatibility, backup, migrations и smoke блокируют применение при ошибке.
 
 7. **Репозиторий не придумывает процесс.** Репо добавляет только свои
    данные: контракты, команды, runbook'и, quality gate. Новые правила веток,
@@ -125,27 +161,37 @@ PR и до любого merge. Остальной документ нужен д
 
 ```text
 идея
-  -> Project item (organization Project `MinChat`)
-  -> issue (по умолчанию в minchat-hq)
-  -> product gate (для новой функциональности)
+  -> короткая issue в minchat-hq (обязательный общий трекер; одной строки достаточно)
+  -> результат + границы; детали уточняются по мере работы
   -> ветка feature/fix от develop
   -> PR в develop  +  quality gate репозитория
   -> merge в develop
-  -> release PR develop -> main  (метка release, Release Gate)
+  -> release PR develop -> main  (метка release, branch-policy)
   -> merge в main
-  -> тег release-<version> в каждом release-producing репо
-  -> dispatch в minchat-ops
-  -> сборка digest-pinned пары образов
-  -> deploy в prod + post-deploy smoke
-  -> запись release BOM
+  -> независимые release-теги backend и web из main
+  -> Drone: проверки компонентов + digest-pinned кандидаты
+  -> Ops: preview выбранной пары + REST compatibility check
+  -> ручное применение выбранных компонентов без пересборки
+  -> post-deploy smoke + release BOM
   -> (при сбое) rollback по предыдущему BOM
+
+Production — целевой еженедельный маршрут после отдельной готовности и
+приёмки runtime. Сейчас production deploy не настроен.
 ```
 
-### 1. Идея и задача
+### 1. Запрос и scope
 
-Новая идея сначала становится item в organization Project `MinChat`. Если нужны
-обсуждение, история или ссылки — issue создаётся в `minchat-hq`. Repo-local
-issue допустим только по исключениям из ownership policy.
+Для задач разработки MinChat в Codex используй [MIN Development Kit](https://github.com/min-null/development-kit/blob/main/docs/usage.md) (`$mindev`).
+Поручение выполнить задачу включает открытие PR и merge в `develop`, если
+полномочия и действующие проверки это позволяют. Запрос на план, исследование,
+ревью или подготовку PR заканчивается запрошенным результатом. Релиз и выкат
+выполняются по отдельному поручению или действующему мандату.
+
+Каждая задача получает issue в `minchat-hq`; сначала проверь, нет ли дубля.
+Для небольшой правки хватит заголовка и одной строки с ожидаемым результатом.
+Для крупной или cross-repo работы коротко добавь границы, зависимости и способ
+проверки. Organization Project можно использовать как обзор очереди, но он не
+нужен для создания или начала задачи.
 
 Cross-repo инициатива — один parent issue в `minchat-hq` с чеклистом PR и
 явно указанным integration/release path для каждого затронутого репозитория.
@@ -153,13 +199,16 @@ Cross-repo инициатива — один parent issue в `minchat-hq` с ч�
 Канон: [minchat-hq/docs/ownership.md](https://github.com/min-null/minchat-hq/blob/main/docs/ownership.md),
 [minchat-hq/docs/project-management.md](https://github.com/min-null/minchat-hq/blob/main/docs/project-management.md).
 
-### 2. Product gate
+### 2. Scope и решения
 
-Новая функциональность проходит продуктовый gate до реализации: пользователь,
-мотивация, usage, основной и негативные пути, UX и критерий успеха. Наличие
-готового backend endpoint не является причиной добавить поверхность в продукт.
+Обычные продуктовые и технические детали решает исполнитель в рамках запроса.
+Не добавляй большие соседние возможности, платформы или настройки без связи с
+целью. Если выяснилось, что меняется цель, приватность, безопасность,
+совместимость или другой труднообратимый выбор, опиши последствия и спроси
+владельца только об этом решении. Дизайн, контракты и ADR создаются по
+необходимости и не являются обязательными gate перед стартом.
 
-Канон: [minchat-hq/docs/product-development-principles.md](https://github.com/min-null/minchat-hq/blob/main/docs/product-development-principles.md).
+Короткий процесс: [minchat-hq/docs/process/feature-pipeline/README.md](https://github.com/min-null/minchat-hq/blob/main/docs/process/feature-pipeline/README.md).
 
 ### 3. Ветка и PR в develop
 
@@ -174,12 +223,15 @@ git submodule update --init --recursive
 Каждый PR живёт в собственном worktree. Одна ветка = одна задача; объединять
 две фичи в одну ветку запрещено.
 
-PR в `develop` должен проходить quality gate своего репозитория. Направление
-веток проверяется автоматически.
+Перед merge в `develop` проверь направление PR, полномочия и обязательные
+проверки для последнего SHA PR. Для перенесённых репозиториев действует
+порядок из раздела о Drone. После merge проверь состояние PR в GitHub и
+наличие merge-коммита в `develop`.
 
-Cross-repo фича: сначала фиксируется контракт в репозитории-владельце, затем
-клиентская реализация в отдельной ветке и отдельной задаче. Один commit или
-worktree не покрывает несколько репозиториев.
+Cross-repo фича: обновляй shared contract там, где меняется API или поведение.
+Для каждого затронутого репозитория нужен свой PR и checkout, но один HQ issue
+может связывать их все. Порядок работы определяется фактическими зависимостями;
+не создавай child issues, если достаточно общего issue с коротким чеклистом.
 
 ### 4. Release PR в main
 
@@ -194,42 +246,37 @@ gh pr create --base main --head develop --label release \
   --title "release: <версия>" --body-file .github/PULL_REQUEST_TEMPLATE/release.md
 ```
 
-Дождаться зелёного `Release Gate`, затем merge.
+Дождаться зелёного `minchat/branch-policy`, затем merge.
 
 ### 5. Теги и dispatch
 
-Один и тот же тег `release-<version>` ставится в оба release-producing
-репозитория:
+Теги `release-<version>` ставятся независимо в release-producing репозитории:
 
 - `min-null/minchat-backend`
 - `min-null/minchat-frontend-web`
 
-Backend tag workflow — **canonical release coordinator**: он проверяет tag policy
-и то, что указанные коммиты лежат в `main`, затем шлёт `repository_dispatch`
-`release` в `minchat-ops`. Ops принимает только совпадающую пару `release-*`
-refs; отсутствие тега в одном из репозиториев даёт явную ошибку checkout, а не
-молчаливый откат на `main`.
+Webhook worker сохраняет каждый backend/web тег независимо.
+Component dispatcher проверяет происхождение и передаёт точные repository, tag
+и SHA в Drone. Неоднозначный ответ API автоматически не отправляется повторно:
+оператор сначала сверяет его с Drone. Подготовка кандидата не выкладывает сайт;
+Ops preview и его применение выполняются отдельными ручными командами.
 
-Если hosted Actions недоступен, оператор может запустить тот же выпуск через
-`minchat-ops/scripts/release.sh prod release-<version>` на VPS. Это ручной
-fallback координатора: он не создаёт теги, проверяет одинаковые существующие
-теги и принадлежность обоих commits `main`, а также зелёные проверки merged
-release PR, на merge commit которого поставлен тег. Ошибка API, отсутствующие,
-красные или незавершённые проверки останавливают выпуск до сборки. Gates можно
-выполнить на self-hosted runner; исчерпание квоты не считается их прохождением.
-Не запускайте одновременно ручной и Actions выпуск одного окружения.
-Команда dev допускает явно выбранный оператором `main` (по умолчанию) или
-`develop`; такой запуск не создаёт production release.
+Старые Actions/Ops production сценарии не являются согласованным weekly
+координатором для выбранной изолированной production-среды. Не запускать
+`minchat-ops/scripts/release.sh prod release-<version>` для текущего сайта:
+до production acceptance нет подтверждённого production runtime и целевого
+gateway. Пара release-тегов сама по себе не означает production deploy.
+Команды dev и ручного обслуживания описаны в CI/Ops runbook; их статус
+нужно сверять перед каждым запуском.
 
 ### 6. Деплой и откат
 
-`minchat-ops` собирает и выкатывает релиз целиком. Продакшн всегда digest-pinned.
-После деплоя — smoke: публичное здоровье, auth, realtime, runtime metadata.
-Текущая пара образов записывается в release BOM; откат читает предыдущий BOM
-целиком.
-
-Dev-выпуск запускается вручную на ops `develop` с `backend_ref=develop` и
-`frontend_ref=develop` и деплоит только dev.
+`minchat-ops` владеет preview, compatibility, backup, migrations, deploy, BOM,
+smoke и rollback. Выкладка вручную выбирает backend, web или оба компонента;
+невыбранный digest берётся из текущего BOM. После deploy выполняется smoke:
+публичное здоровье, авторизованная сессия, realtime и фактические версии.
+Откат читает предыдущий BOM. Push updater для отдельной dev-среды остаётся
+независимым от release и deploy маршрута.
 
 Канон: [minchat-ops/docs/release-process.md](https://github.com/min-null/minchat-ops/blob/main/docs/release-process.md),
 [minchat-ops/docs/rollback.md](https://github.com/min-null/minchat-ops/blob/main/docs/rollback.md).
@@ -348,8 +395,7 @@ issues-103-add-workspace-tabs
 - Команды `git worktree add`, submodule setup и submodule-границы — в
   [`development-kit/docs/repository-workflow.md`](https://github.com/min-null/development-kit/blob/main/docs/repository-workflow.md),
   раздел Worktrees.
-- Сквозная фича с ролями и evidence — skill `feature-orchestration`
-  (MIN Development Kit).
+- Поручения, координация и проверка результата в Codex — [MinDev](https://github.com/min-null/development-kit/blob/main/docs/usage.md).
 - При конфликте приоритетов между параллельными worktree — решение integration
   owner-а, зафиксированное в parent issue в `minchat-hq`.
 
@@ -376,25 +422,68 @@ issues-103-add-workspace-tabs
 | Процесс: ветки, PR, release, deploy | org | этот документ |
 | Карта репозиториев | `minchat-hq` | [docs/repositories.md](https://github.com/min-null/minchat-hq/blob/main/docs/repositories.md) |
 | Куда заводить задачи, labels | `minchat-hq` | [docs/ownership.md](https://github.com/min-null/minchat-hq/blob/main/docs/ownership.md) |
-| Product gate | `minchat-hq` | [docs/product-development-principles.md](https://github.com/min-null/minchat-hq/blob/main/docs/product-development-principles.md) |
+| Product guidance | `minchat-hq` | [docs/product-development-principles.md](https://github.com/min-null/minchat-hq/blob/main/docs/product-development-principles.md) |
 | Релизный план | `minchat-hq` | [roadmap/](https://github.com/min-null/minchat-hq/tree/main/roadmap) |
 | Release map и границы deploy | `minchat-hq` | [docs/release-map.md](https://github.com/min-null/minchat-hq/blob/main/docs/release-map.md) |
 | Branch/release flow backend | `minchat-backend` | [docs/release-flow.md](https://github.com/min-null/minchat-backend/blob/main/docs/release-flow.md) |
 | Архитектура и runbook'и backend | `minchat-backend` | [docs/README.md](https://github.com/min-null/minchat-backend/blob/main/docs/README.md) |
 | Контракты REST/WS/UI/behavioral | `minchat-backend` | [shared/README.md](https://github.com/min-null/minchat-backend/blob/main/shared/README.md) |
 | Submodules, worktrees, границы клиентов | `minchat-frontend` | [AGENTS.md](https://github.com/min-null/minchat-frontend/blob/main/AGENTS.md) |
-| Оркестрация фичи, роли, evidence | `development-kit` | [docs/usage.md](https://github.com/min-null/development-kit/blob/main/docs/usage.md) |
+| Работа с задачей в Codex | `development-kit` | [docs/usage.md](https://github.com/min-null/development-kit/blob/main/docs/usage.md) |
 | Работа с репозиториями в агенте | `development-kit` | [docs/repository-workflow.md](https://github.com/min-null/development-kit/blob/main/docs/repository-workflow.md) |
 | Релизный процесс, BOM, rollback | `minchat-ops` | [docs/release-process.md](https://github.com/min-null/minchat-ops/blob/main/docs/release-process.md) |
 | Окружения, secrets, quality gate | `minchat-ops` | [docs/](https://github.com/min-null/minchat-ops/tree/main/docs) |
 
+## Чистая консоль и диагностика ошибок
+
+**Штатные сценарии проходят без необработанных ошибок и ложных error-событий.
+Неожиданные сбои остаются наблюдаемыми и расследуются.** Это критерий качества
+затронутого сценария, а не обещание отсутствия любых красных строк браузера.
+
+- Открытие и смена чатов, переход между вкладками, отмена запроса при навигации,
+  временная потеря сети и успешное переподключение обрабатываются без
+  `console.error`, необработанных исключений и `unhandledrejection`.
+  Ожидаемый отказ, например ошибка ввода, также имеет явную обработку.
+  Повтор, таймер или отмена сами по себе не означают ошибку приложения.
+- Если действие пользователя не выполнено, интерфейс объясняет результат и
+  доступный способ восстановления. Фоновая проверка или повтор не должны
+  создавать технические сообщения и анимации возле каждого объекта.
+  Состояние связи показывается в одном подходящем месте, когда влияет на работу;
+  неизвестные данные не выдаются за подтверждённый результат.
+- Неожиданный сбой и нарушение логики фиксируются как ошибки с контекстом
+  операции, достаточным для расследования, без токенов, личной переписки и
+  других чувствительных данных. Одна причина не должна порождать одинаковые
+  записи на каждом слое или бесконечный поток ошибок при повторах.
+- Нельзя добиваться чистой консоли отключением логирования, пустым `catch`,
+  глобальным подавлением ошибок или механическим переводом всех ошибок в
+  `warn`/`debug`. Ожидаемые события классифицируются по смыслу; реальные сбои
+  сохраняют диагностику через существующие средства наблюдения.
+- Сообщения, которые браузер сам выводит при неудачном сетевом запросе или
+  WebSocket-соединении, учитываются отдельно от логов приложения. Не скрывай их:
+  проверь восстановление и отсутствие каскада запросов. Сам источник сообщения
+  не делает его безвредным — ошибка URL, CORS, сертификата или сервера требует
+  разбора причины.
+
+Для изменения клиентского поведения проверь основной затронутый сценарий и
+относящиеся к нему отмену, отказ и восстановление. В PR укажи проверенные
+сценарии, ошибки консоли/необработанные сбои и результат восстановления;
+непроведённое отмечай `not_run` с причиной. Проверка может быть ручной или
+автоматической; регрессия, которую можно надёжно воспроизвести, получает
+подходящий тест. Это не требует полного аудита приложения в каждом PR.
+
+Новые необработанные ошибки и ложные error-события в затронутом сценарии
+исправляются до merge. Найденные старые сбои вне scope получают отдельную HQ
+issue со ссылкой в PR; не выдавай такую проверку за «ошибок нет».
+
 ## Проверки перед merge
 
 - Направление PR соответствует разделу «Обязательные правила».
-- Quality gate репозитория зелёный.
-- Для backend — `Backend CI` зелёный, включая contract drift checks.
-- Для релиза — зелёный `Release Gate` (направление веток, метка, полный quality gate).
+- Пройдены обязательные проверки для актуального SHA по правилам репозитория и действующего CI.
+- Для пяти перенесённых репозиториев release PR требует зелёный
+  `minchat/branch-policy`; обязательные component checks выполняются до выдачи
+  кандидата и блокируют apply при ошибке.
 - Проведённые проверки перечислены; непроведённые помечены `not_run` с причиной.
+- Для клиентского поведения выполнена [проверка консоли и восстановления](#чистая-консоль-и-диагностика-ошибок).
 - Изменение workflow, compose, env-контракта или BOM сопровождается изменением
   документации в том же PR.
 
