@@ -19,7 +19,7 @@ body:
     id: summary
     attributes:
       label: TL;DR
-      description: 2-3 предложения: что хотим получить и зачем.
+      description: "2-3 предложения: что хотим получить и зачем."
     validations:
       required: true
 
