@@ -35,7 +35,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          ref_path="repos/$REPOSITORY/git/ref/heads/$HEAD_REF"
+          read_ref_path="repos/$REPOSITORY/git/ref/heads/$HEAD_REF"
+          delete_ref_path="repos/$REPOSITORY/git/refs/heads/$HEAD_REF"
           live_pr="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.merged, .base.ref, .head.repo.full_name, .head.ref, .head.sha] | @tsv')"
           IFS=$'\t' read -r merged base_ref head_repository head_ref head_sha <<< "$live_pr"
 
@@ -51,7 +52,7 @@ jobs:
           fi
 
           set +e
-          current_sha="$(gh api "$ref_path" --jq '.object.sha' 2>&1)"
+          current_sha="$(gh api "$read_ref_path" --jq '.object.sha' 2>&1)"
           status=$?
           set -e
 
@@ -69,5 +70,5 @@ jobs:
             exit 0
           fi
 
-          gh api --method DELETE "$ref_path" >/dev/null
+          gh api --method DELETE "$delete_ref_path" >/dev/null
           echo "Deleted $REPOSITORY:$HEAD_REF after merged PR #$PULL_REQUEST_NUMBER."
