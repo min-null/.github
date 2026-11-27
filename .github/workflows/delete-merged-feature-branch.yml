@@ -3,7 +3,6 @@ name: Delete merged feature branch
 on:
   pull_request:
     types: [closed]
-  workflow_call:
 
 permissions:
   contents: read
