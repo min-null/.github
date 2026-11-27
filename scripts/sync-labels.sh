@@ -28,7 +28,6 @@ gh label create "area:contracts" --color "8a2be2" --description "Shared contract
 gh label create "area:web"       --color "c5def5" --description "Web-клиент"                     --repo "$REPO" || true
 gh label create "area:desktop"   --color "bfd4f2" --description "Desktop-клиент"                 --repo "$REPO" || true
 gh label create "area:android"   --color "3ddc84" --description "Android-клиент"                 --repo "$REPO" || true
-gh label create "area:flutter"   --color "02569b" --description "Flutter-клиент"                 --repo "$REPO" || true
 gh label create "area:ops"       --color "0e8a16" --description "Ops, deploy, environments"     --repo "$REPO" || true
 gh label create "area:hq"        --color "f9d0c4" --description "Координация и мета-документация" --repo "$REPO" || true
 

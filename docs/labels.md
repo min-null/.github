@@ -7,7 +7,7 @@
 | Семейство | Значение |
 |---|---|
 | `type:*` | Вид работы: feature, bug, chore, research, security |
-| `area:*` | Основная часть продукта: backend, contracts, web, desktop, android, flutter, ops, hq |
+| `area:*` | Основная часть продукта: backend, contracts, web, desktop, android, ops, hq |
 | `coordination:cross-repo` | В одной задаче участвует несколько репозиториев |
 | `coordination:blocked` | Внешняя зависимость мешает продолжать; укажи причину и ссылку |
 | `coordination:needs-decision` | Конкретный вопрос ждёт решения владельца |
