@@ -1,0 +1,73 @@
+name: Delete merged feature branch
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  delete-merged-feature-branch:
+    name: Delete merged feature branch
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'develop' &&
+      github.event.pull_request.head.ref != 'develop' &&
+      github.event.pull_request.head.ref != 'main' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ vars.MINCHAT_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    steps:
+      - name: Delete source ref if it still points at the merged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ref_path="repos/$REPOSITORY/git/ref/heads/$HEAD_REF"
+          live_pr="$(gh api "repos/$REPOSITORY/pulls/$PULL_REQUEST_NUMBER" --jq '[.merged, .base.ref, .head.repo.full_name, .head.ref, .head.sha] | @tsv')"
+          IFS=$'\t' read -r merged base_ref head_repository head_ref head_sha <<< "$live_pr"
+
+          if [[ "$merged" != "true" || "$base_ref" != "develop" || "$head_repository" != "$REPOSITORY" || "$head_ref" != "$HEAD_REF" || "$head_sha" != "$HEAD_SHA" || "$HEAD_REF" == "develop" || "$HEAD_REF" == "main" ]]; then
+            echo "Pull request no longer matches the safe deletion conditions; leaving the source branch in place."
+            exit 0
+          fi
+
+          open_pr_count="$(gh pr list --repo "$REPOSITORY" --head "$HEAD_REF" --state open --json number --jq 'length')"
+          if [[ "$open_pr_count" != "0" ]]; then
+            echo "Another open pull request uses the source branch; preserving it."
+            exit 0
+          fi
+
+          set +e
+          current_sha="$(gh api "$ref_path" --jq '.object.sha' 2>&1)"
+          status=$?
+          set -e
+
+          if [[ $status -ne 0 ]]; then
+            if grep -q 'HTTP 404' <<< "$current_sha"; then
+              echo "Source branch was already deleted; nothing to do."
+              exit 0
+            fi
+            echo "$current_sha" >&2
+            exit "$status"
+          fi
+
+          if [[ "$current_sha" != "$HEAD_SHA" ]]; then
+            echo "Source branch advanced after merge; preserving it."
+            exit 0
+          fi
+
+          gh api --method DELETE "$ref_path" >/dev/null
+          echo "Deleted $REPOSITORY:$HEAD_REF after merged PR #$PULL_REQUEST_NUMBER."
