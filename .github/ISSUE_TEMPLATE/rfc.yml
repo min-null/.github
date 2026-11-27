@@ -57,6 +57,5 @@ body:
         - area:web
         - area:desktop
         - area:android
-        - area:flutter
         - area:ops
         - area:hq

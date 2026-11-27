@@ -71,8 +71,7 @@ Jenkins после cutover отключён и не используется к�
 - Android build сохранён отдельным manual-only Drone pipeline. Push, PR, tags,
   расписания и web/backend releases его не запускают; подписанная публикация
   требует отдельного явного выбора. Сквозная Android сборка, подпись и
-  публикация имеют статус `not_run` и не блокируют cutover. Flutter/Dart команды
-  запускаются только на CI VPS, не на компьютере пользователя.
+  публикация через Drone отслеживаются в [HQ #535](https://github.com/min-null/minchat-hq/issues/535). Активный мобильный клиент — `minchat-frontend-android` на Compose Multiplatform.
 - Еженедельный production-выпуск будет использовать отдельные
   `release-<version>` кандидаты из `main`, полный обязательный CI, отдельный
   production runtime, smoke, BOM и rollback. Сейчас этот отдельный маршрут не готов и
