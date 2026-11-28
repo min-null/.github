@@ -32,6 +32,12 @@ jobs:
     runs-on: ${{ vars.MINCHAT_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
+      - name: Check out lifecycle parser
+        uses: actions/checkout@v5
+        with:
+          repository: min-null/.github
+          ref: main
+          persist-credentials: false
       - name: Update linked issues
         env:
           EVENT_REPOSITORY: ${{ github.repository }}
@@ -44,7 +50,7 @@ jobs:
           FLOW_REPOS=("$EVENT_REPOSITORY")
 
           ensure_label() {
-            gh label create "$1" --color "$2" --repo "$repo" --force >/dev/null 2>&1 || true
+            gh label create "$1" --color "$2" --repo "$3" --force >/dev/null 2>&1 || true
           }
 
 
@@ -58,36 +64,20 @@ jobs:
 
           # Step 2: bootstrap labels in each target repo
           for repo in "${TARGET[@]}"; do
-            ensure_label status:in-review fbca04 || true
-            ensure_label status:in-develop 0e8a16 || true
-            ensure_label status:in-release bfdadc || true
-            ensure_label status:released 0075ca || true
+            ensure_label status:in-review fbca04 "$repo" || true
+            ensure_label status:in-develop 0e8a16 "$repo" || true
+            ensure_label status:in-release bfdadc "$repo" || true
+            ensure_label status:released 0075ca "$repo" || true
           done
 
           # Step 3: process PRs. For PR event, just that one. For schedule, recent merges last eight days.
           process_pr() {
             local repo="$1" num="$2" base="$3" body="$4" pr_url="$5" head="$6" release_label="$7"
-            local issues closing_issues
-            # Два класса сигналов:
-            #   closing    — closes|fixes|resolves (+ fix|close). PR завершает задачу.
-            #   mentioning — refs|see|part of. PR лишь упоминает задачу (типично для
-            #                release-PR, где head-ветка `develop`, а в теле `Refs #N`).
-            # Короткая форма `Refs #N`. Длинная форма `Refs <repo>#N` тоже понимается,
-            # но только если `<repo>` — текущий репозиторий: кросс-репо бот не ведёт.
-            closing_issues=$(echo "$body" | grep -oiE '(closes|fixes|resolves|fix|close)[[:space:]]*#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
-            issues=$(echo "$body" | grep -oiE '(closes|fixes|resolves|fix|close|refs|see|part[ _-]?of)[[:space:]]*#[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
-            local own_repo="${repo#*/}"
-            issues=$(printf '%s\n%s\n' "$issues" \
-              "$(echo "$body" | grep -oiE "(closes|fixes|resolves|fix|close|refs|see|part[ _-]?of)[[:space:]]+[A-Za-z0-9._-]*/${own_repo}[[:space:]]*#[0-9]+" | grep -oE '[0-9]+' | sort -u || true)" \
-              | grep -E '^[0-9]+$' | sort -u || true)
-            closing_issues=$(printf '%s\n%s\n' "$closing_issues" \
-              "$(echo "$body" | grep -oiE "(closes|fixes|resolves|fix|close)[[:space:]]+[A-Za-z0-9._-]*/${own_repo}[[:space:]]*#[0-9]+" | grep -oE '[0-9]+' | sort -u || true)" \
-              | grep -E '^[0-9]+$' | sort -u || true)
-            if [ -z "$issues" ]; then
-              issues=$(echo "$head" | grep -oE 'issues-[0-9]+' | grep -oE '[0-9]+' | sort -u || true)
-              closing_issues="$issues"
-            fi
-            [ -z "$issues" ] && { echo "  $repo #$num: no linked issues, skip"; return 0; }
+            local refs
+            local release_arg=()
+            [ "$release_label" = "true" ] && release_arg=(--release)
+            refs=$(python3 .github/scripts/issue_lifecycle_links.py --repo "$repo" --head "$head" --base "$base" "${release_arg[@]}" <<<"$body")
+            [ -z "$refs" ] && { echo "  $repo #$num: no linked issues, skip"; return 0; }
 
             local new_label comment close_issue
             if [ "$base" = "main" ]; then
@@ -103,20 +93,25 @@ jobs:
               return 0
             fi
 
-            for issue in $issues; do
-              echo "  $repo #$issue → $new_label"
+            while IFS=$'\t' read -r issue_repo issue explicitly_closes should_close; do
+              [ -z "$issue_repo" ] && continue
+              echo "  $issue_repo #$issue → $new_label"
+
+              # A tagged release closes the fully-qualified cross-repo issue.
+              ensure_label status:in-review fbca04 "$issue_repo"
+              ensure_label status:in-develop 0e8a16 "$issue_repo"
+              ensure_label status:in-release bfdadc "$issue_repo"
+              ensure_label status:released 0075ca "$issue_repo"
 
               # Комментарий зависит от того, закрывающий это PR или лишь упоминающий.
-              if echo "$closing_issues" | grep -qx "$issue"; then
-                comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url})."
-                if [ "$close_issue" = "true" ]; then
-                  comment="[lifecycle-bot] 🎉 Released to \`main\` and closed via [#${num}](${pr_url})."
-                fi
+              if [ "$base" = "main" ] && [ "$should_close" = "true" ]; then
+                comment="[lifecycle-bot] 🎉 Released to \`main\` and closed via [#${num}](${pr_url})."
+              elif [ "$base" = "main" ]; then
+                comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url}). Issue remains open: the PR only mentions the task."
+              elif [ "$explicitly_closes" = "true" ]; then
+                comment="[lifecycle-bot] 🟢 Merged to \`develop\` via [#${num}](${pr_url}); issue will close after release to \`main\`."
               else
                 case "$new_label" in
-                  status:released)
-                    comment="[lifecycle-bot] 🎉 Released to \`main\` via [#${num}](${pr_url}). Issue остаётся открытым: PR лишь упоминает задачу, а не закрывает её. Закрытие — за человеком."
-                    ;;
                   status:in-release)
                     comment="[lifecycle-bot] 🚀 Release PR opened: [#${num}](${pr_url})."
                     ;;
@@ -126,9 +121,9 @@ jobs:
                 esac
               fi
 
-              if gh issue view "$issue" --repo "$repo" --json comments --jq '.comments[].body' 2>/dev/null | grep -Fxq -- "$comment"; then
+              if gh issue view "$issue" --repo "$issue_repo" --json comments --jq '.comments[].body' 2>/dev/null | grep -Fxq -- "$comment"; then
                 echo "    (comment already exists)"
-              elif gh issue comment "$issue" --repo "$repo" --body "$comment" 2>/dev/null; then
+              elif gh issue comment "$issue" --repo "$issue_repo" --body "$comment" 2>/dev/null; then
                 :
               else
                 echo "    (no comment access, skipping comment)"
@@ -136,23 +131,26 @@ jobs:
 
               # Monotone status: ровно одна status-метка отражает текущее состояние.
               local stale_labels
-              stale_labels=$(gh issue view "$issue" --repo "$repo" --json labels --jq '.labels[].name' 2>/dev/null \
+              stale_labels=$(gh issue view "$issue" --repo "$issue_repo" --json labels --jq '.labels[].name' 2>/dev/null \
                 | grep -E '^status:' | grep -vxF "$new_label" || true)
               for stale in $stale_labels; do
-                gh issue edit "$issue" --repo "$repo" --remove-label "$stale" 2>/dev/null \
+                gh issue edit "$issue" --repo "$issue_repo" --remove-label "$stale" 2>/dev/null \
                   && echo "    removed $stale"
               done
 
-              if gh issue edit "$issue" --repo "$repo" --add-label "$new_label" 2>/dev/null; then
+              if gh issue edit "$issue" --repo "$issue_repo" --add-label "$new_label" 2>/dev/null; then
                 :
               else
                 echo "    (no edit access, skipping label)"
               fi
-              if [ "$close_issue" = "true" ] && echo "$closing_issues" | grep -qx "$issue"; then
-                gh issue close "$issue" --repo "$repo" --reason completed 2>/dev/null || \
-                  echo "    (no close access, skipping close)"
+              if [ "$close_issue" = "true" ] && [ "$should_close" = "true" ]; then
+                if gh issue close "$issue" --repo "$issue_repo" --reason completed; then
+                  echo "    closed $issue_repo#$issue"
+                else
+                  echo "::error::Could not close $issue_repo#$issue after PR $pr_url; verify that issue and token access exist." >&2
+                fi
               fi
-            done
+            done <<<"$refs"
           }
 
           if [ "$EVENT_NAME" = "pull_request" ]; then
